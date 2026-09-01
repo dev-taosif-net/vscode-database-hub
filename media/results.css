@@ -1,0 +1,224 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.empty {
+  padding: 24px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.env-band {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 12px;
+  color: #fff;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.env-band .env-name {
+  font-size: 11px;
+  letter-spacing: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.env-band .conn {
+  font-weight: 400;
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.env-band .stats {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.tabs button {
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  padding: 4px 10px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.tabs button.active {
+  border-bottom-color: var(--vscode-focusBorder);
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar input[type='text'] {
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 3px 6px;
+  border-radius: 2px;
+  width: 200px;
+}
+
+.toolbar button,
+.pager button {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  padding: 3px 9px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.toolbar button:hover,
+.pager button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.toolbar button:disabled,
+.pager button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.grid-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 130px);
+}
+
+table {
+  border-collapse: collapse;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+th,
+td {
+  border: 1px solid var(--vscode-panel-border);
+  padding: 2px 8px;
+  text-align: left;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  background: var(--vscode-editorWidget-background);
+  cursor: pointer;
+  user-select: none;
+  z-index: 2;
+}
+
+th .dir {
+  opacity: 0.7;
+  margin-left: 4px;
+}
+
+td.rownum,
+th.rownum {
+  color: var(--vscode-descriptionForeground);
+  text-align: right;
+  cursor: default;
+  background: var(--vscode-editorWidget-background);
+}
+
+tr.selected td {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+td.cell-active {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+td.null {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.messages {
+  padding: 8px 12px;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: var(--vscode-descriptionForeground);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.error {
+  padding: 14px;
+  color: var(--vscode-errorForeground);
+  font-family: var(--vscode-editor-font-family);
+  white-space: pre-wrap;
+}
+
+.running {
+  padding: 20px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vscode-descriptionForeground);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+  vertical-align: -2px;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.truncated-note {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--vscode-editorWarning-foreground, #e8830c);
+}

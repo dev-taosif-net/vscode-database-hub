@@ -1,0 +1,586 @@
+{
+  "name": "database-hub",
+  "displayName": "Database Hub",
+  "description": "Fast, lightweight database tools for SQL Server and PostgreSQL — multi-connection management, lazy object explorer, query execution, results grid, history, favorites and snippets.",
+  "version": "0.1.0",
+  "publisher": "databasehub",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "sql",
+    "sql server",
+    "mssql",
+    "postgresql",
+    "postgres",
+    "database",
+    "query"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "mssql": "^11.0.1",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^20.14.0",
+    "@types/pg": "^8.15.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.6.0"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "databaseHub",
+          "title": "Database Hub",
+          "icon": "media/database.svg"
+        }
+      ]
+    },
+    "views": {
+      "databaseHub": [
+        {
+          "id": "databaseHubConnections",
+          "name": "Connections",
+          "icon": "media/database.svg"
+        },
+        {
+          "id": "databaseHubHistory",
+          "name": "Query History",
+          "icon": "media/database.svg"
+        },
+        {
+          "id": "databaseHubFavorites",
+          "name": "Favorites",
+          "icon": "media/database.svg"
+        },
+        {
+          "id": "databaseHubSnippets",
+          "name": "Snippets",
+          "icon": "media/database.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "databaseHubConnections",
+        "contents": "No connections yet.\n[Add Connection](command:databaseHub.addConnection)\nSupports Microsoft SQL Server and PostgreSQL."
+      }
+    ],
+    "commands": [
+      {
+        "command": "databaseHub.addConnection",
+        "title": "Add Connection",
+        "category": "Database Hub",
+        "icon": "$(add)"
+      },
+      {
+        "command": "databaseHub.editConnection",
+        "title": "Edit Connection",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.deleteConnection",
+        "title": "Delete Connection",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.connect",
+        "title": "Connect",
+        "category": "Database Hub",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "databaseHub.disconnect",
+        "title": "Disconnect",
+        "category": "Database Hub",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "databaseHub.newQuery",
+        "title": "New Query",
+        "category": "Database Hub",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "databaseHub.refreshExplorer",
+        "title": "Refresh Explorer",
+        "category": "Database Hub",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "databaseHub.refreshNode",
+        "title": "Refresh",
+        "category": "Database Hub",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "databaseHub.toggleSchemaMode",
+        "title": "Toggle Schema Focus Mode",
+        "category": "Database Hub",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "databaseHub.searchObjects",
+        "title": "Search Database Objects",
+        "category": "Database Hub",
+        "icon": "$(search)"
+      },
+      {
+        "command": "databaseHub.selectTop1000",
+        "title": "SELECT Top 1000 Rows",
+        "category": "Database Hub",
+        "icon": "$(play)"
+      },
+      {
+        "command": "databaseHub.scriptCreate",
+        "title": "Script as CREATE",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.copyObjectName",
+        "title": "Copy Qualified Name",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.addObjectFavorite",
+        "title": "Add to Favorites",
+        "category": "Database Hub",
+        "icon": "$(star)"
+      },
+      {
+        "command": "databaseHub.execute",
+        "title": "Execute (Selection or All)",
+        "category": "Database Hub",
+        "icon": "$(play)"
+      },
+      {
+        "command": "databaseHub.executeAll",
+        "title": "Execute All",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.executeSelection",
+        "title": "Execute Selected",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.cancelQuery",
+        "title": "Cancel Running Query",
+        "category": "Database Hub",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "databaseHub.selectConnectionForEditor",
+        "title": "Select Connection for This Editor",
+        "category": "Database Hub",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "databaseHub.pickActiveConnection",
+        "title": "Switch Active Connection",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.history.open",
+        "title": "Open in Editor",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.history.rerun",
+        "title": "Re-run Query",
+        "category": "Database Hub",
+        "icon": "$(play)"
+      },
+      {
+        "command": "databaseHub.history.copy",
+        "title": "Copy Query",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.history.favorite",
+        "title": "Add to Favorites",
+        "category": "Database Hub",
+        "icon": "$(star)"
+      },
+      {
+        "command": "databaseHub.history.delete",
+        "title": "Remove from History",
+        "category": "Database Hub",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "databaseHub.history.clear",
+        "title": "Clear Query History",
+        "category": "Database Hub",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "databaseHub.history.search",
+        "title": "Search Query History",
+        "category": "Database Hub",
+        "icon": "$(search)"
+      },
+      {
+        "command": "databaseHub.favorites.open",
+        "title": "Open Favorite",
+        "category": "Database Hub"
+      },
+      {
+        "command": "databaseHub.favorites.remove",
+        "title": "Remove Favorite",
+        "category": "Database Hub",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "databaseHub.snippets.insert",
+        "title": "Insert Snippet",
+        "category": "Database Hub"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "databaseHub.refreshNode",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.connect",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.disconnect",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.editConnection",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.deleteConnection",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.selectTop1000",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.scriptCreate",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.copyObjectName",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.addObjectFavorite",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.history.open",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.history.rerun",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.history.copy",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.history.favorite",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.history.delete",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.favorites.open",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.favorites.remove",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.snippets.insert",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.execute",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "databaseHub.executeAll",
+          "when": "editorLangId == sql"
+        },
+        {
+          "command": "databaseHub.executeSelection",
+          "when": "editorLangId == sql"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "databaseHub.addConnection",
+          "when": "view == databaseHubConnections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "databaseHub.searchObjects",
+          "when": "view == databaseHubConnections",
+          "group": "navigation@2"
+        },
+        {
+          "command": "databaseHub.refreshExplorer",
+          "when": "view == databaseHubConnections",
+          "group": "navigation@3"
+        },
+        {
+          "command": "databaseHub.toggleSchemaMode",
+          "when": "view == databaseHubConnections"
+        },
+        {
+          "command": "databaseHub.history.search",
+          "when": "view == databaseHubHistory",
+          "group": "navigation@1"
+        },
+        {
+          "command": "databaseHub.history.clear",
+          "when": "view == databaseHubHistory",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "databaseHub.connect",
+          "when": "view == databaseHubConnections && viewItem == connection-off",
+          "group": "inline@1"
+        },
+        {
+          "command": "databaseHub.newQuery",
+          "when": "view == databaseHubConnections && viewItem == connection-on",
+          "group": "inline@1"
+        },
+        {
+          "command": "databaseHub.connect",
+          "when": "view == databaseHubConnections && viewItem == connection-off",
+          "group": "1_connection@1"
+        },
+        {
+          "command": "databaseHub.disconnect",
+          "when": "view == databaseHubConnections && viewItem == connection-on",
+          "group": "1_connection@1"
+        },
+        {
+          "command": "databaseHub.newQuery",
+          "when": "view == databaseHubConnections && viewItem == connection-on",
+          "group": "1_connection@2"
+        },
+        {
+          "command": "databaseHub.refreshNode",
+          "when": "view == databaseHubConnections && viewItem =~ /^(connection-on|folder|schema)$/",
+          "group": "2_refresh@1"
+        },
+        {
+          "command": "databaseHub.editConnection",
+          "when": "view == databaseHubConnections && viewItem =~ /^connection-/",
+          "group": "9_manage@1"
+        },
+        {
+          "command": "databaseHub.deleteConnection",
+          "when": "view == databaseHubConnections && viewItem =~ /^connection-/",
+          "group": "9_manage@2"
+        },
+        {
+          "command": "databaseHub.selectTop1000",
+          "when": "view == databaseHubConnections && viewItem =~ /^object-(table|view)$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "databaseHub.selectTop1000",
+          "when": "view == databaseHubConnections && viewItem =~ /^object-(table|view)$/",
+          "group": "1_query@1"
+        },
+        {
+          "command": "databaseHub.scriptCreate",
+          "when": "view == databaseHubConnections && viewItem =~ /^object-(view|procedure|function)$/",
+          "group": "1_query@2"
+        },
+        {
+          "command": "databaseHub.copyObjectName",
+          "when": "view == databaseHubConnections && viewItem =~ /^object-/",
+          "group": "5_copy@1"
+        },
+        {
+          "command": "databaseHub.addObjectFavorite",
+          "when": "view == databaseHubConnections && viewItem =~ /^object-(table|view|procedure|function)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "databaseHub.history.rerun",
+          "when": "view == databaseHubHistory && viewItem == history",
+          "group": "inline@1"
+        },
+        {
+          "command": "databaseHub.history.favorite",
+          "when": "view == databaseHubHistory && viewItem == history",
+          "group": "inline@2"
+        },
+        {
+          "command": "databaseHub.history.open",
+          "when": "view == databaseHubHistory && viewItem == history",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "databaseHub.history.copy",
+          "when": "view == databaseHubHistory && viewItem == history",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "databaseHub.history.delete",
+          "when": "view == databaseHubHistory && viewItem == history",
+          "group": "9_manage@1"
+        },
+        {
+          "command": "databaseHub.favorites.remove",
+          "when": "view == databaseHubFavorites && viewItem == favorite",
+          "group": "inline@1"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "databaseHub.execute",
+          "when": "editorLangId == sql && !databaseHub.queryRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "databaseHub.cancelQuery",
+          "when": "editorLangId == sql && databaseHub.queryRunning",
+          "group": "navigation@1"
+        },
+        {
+          "command": "databaseHub.selectConnectionForEditor",
+          "when": "editorLangId == sql",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "databaseHub.execute",
+          "when": "editorLangId == sql",
+          "group": "databaseHub@1"
+        },
+        {
+          "command": "databaseHub.executeSelection",
+          "when": "editorLangId == sql && editorHasSelection",
+          "group": "databaseHub@2"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "databaseHub.execute",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      },
+      {
+        "command": "databaseHub.executeAll",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && editorLangId == sql"
+      }
+    ],
+    "configuration": {
+      "title": "Database Hub",
+      "properties": {
+        "databaseHub.query.timeoutSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 0,
+          "description": "Query execution timeout in seconds (0 = no timeout). Applied when a connection is opened."
+        },
+        "databaseHub.query.maxRows": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 100,
+          "description": "Maximum rows fetched per result set. Larger results are truncated to keep the UI fast."
+        },
+        "databaseHub.grid.pageSize": {
+          "type": "number",
+          "default": 200,
+          "minimum": 50,
+          "description": "Rows per page in the results grid."
+        },
+        "databaseHub.history.maxEntries": {
+          "type": "number",
+          "default": 200,
+          "minimum": 10,
+          "description": "Maximum number of queries kept in history."
+        },
+        "databaseHub.safety.warnDangerousQueries": {
+          "type": "boolean",
+          "default": true,
+          "description": "Warn before executing DELETE/UPDATE without WHERE, TRUNCATE, or DROP."
+        },
+        "databaseHub.safety.requireProdConfirmation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Require explicit confirmation before running any write statement against a PROD connection."
+        },
+        "databaseHub.explorer.groupBySchema": {
+          "type": "boolean",
+          "default": false,
+          "description": "Schema Focus Mode: group the object explorer by schema instead of by object type."
+        },
+        "databaseHub.metadata.cacheTtlMinutes": {
+          "type": "number",
+          "default": 10,
+          "minimum": 1,
+          "description": "How long cached schema metadata stays fresh before background refresh."
+        },
+        "databaseHub.snippets.custom": {
+          "type": "array",
+          "default": [],
+          "description": "Custom SQL snippets: [{ \"label\": \"...\", \"description\": \"...\", \"body\": \"...\" }]. Snippet placeholder syntax ($1, ${1:name}) is supported.",
+          "items": {
+            "type": "object",
+            "required": [
+              "label",
+              "body"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "body": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

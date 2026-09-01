@@ -1,0 +1,49 @@
+import {
+  ColumnInfo,
+  ConnectionProfile,
+  DbObject,
+  ObjectType,
+  ParameterInfo,
+  QueryRunResult,
+} from '../types';
+
+export interface QueryOptions {
+  /** Rows kept per result set; extra rows are dropped/stopped */
+  maxRows: number;
+}
+
+export interface ConnectOptions {
+  /** Request timeout applied to queries, ms. 0 = unlimited */
+  requestTimeoutMs: number;
+}
+
+/**
+ * One driver instance == one connection pool for one profile.
+ * All metadata calls return everything for the database in a single
+ * round-trip so results can be cached aggressively.
+ */
+export interface Driver {
+  readonly profile: ConnectionProfile;
+
+  connect(password: string, opts: ConnectOptions): Promise<void>;
+  disconnect(): Promise<void>;
+
+  execute(sql: string, opts: QueryOptions): Promise<QueryRunResult>;
+  /** Cancel the currently running execute(), if any */
+  cancelRunning(): Promise<void>;
+
+  listObjects(type: ObjectType): Promise<DbObject[]>;
+  listColumns(schema: string, table: string): Promise<ColumnInfo[]>;
+  listParameters(schema: string, routine: string): Promise<ParameterInfo[]>;
+  getDefinition(obj: DbObject): Promise<string>;
+
+  quoteIdent(name: string): string;
+  buildSelectTop(schema: string, name: string, n: number): string;
+}
+
+export class QueryCancelledError extends Error {
+  constructor() {
+    super('Query was cancelled.');
+    this.name = 'QueryCancelledError';
+  }
+}
