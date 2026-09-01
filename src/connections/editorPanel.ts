@@ -251,7 +251,7 @@ export class ConnectionEditorPanel {
     </div>
     <div id="connstring-mode" class="hidden">
       <div class="row"><label for="connString">Connection string</label><input type="text" id="connString" placeholder="Paste a connection string…"></div>
-      <p class="hint">Supports ADO.NET, Npgsql, JDBC, postgres:// URLs and conninfo.</p>
+      <p class="hint">Supports ADO.NET, Npgsql, JDBC, postgres:// URLs and conninfo. Without a database, you can browse all databases and queries run against master (SQL Server) / postgres (PostgreSQL) by default.</p>
     </div>
   </div>
 
@@ -262,7 +262,7 @@ export class ConnectionEditorPanel {
       <div class="row"><label for="port">Port</label><input type="number" id="port" min="1" max="65535"></div>
       <p class="hint">Optional — leave blank for the server default (1433 / 5432) or a named instance.</p>
       <div class="row"><label for="database">Database</label><input type="text" id="database" placeholder="optional"></div>
-      <p class="hint">Optional — leave blank to browse all databases on the server.</p>
+      <p class="hint">Optional — leave blank to browse all databases; queries then run against master (SQL Server) / postgres (PostgreSQL) by default.</p>
       <div id="mssql-opts">
         <div class="check"><input type="checkbox" id="encrypt" checked><label for="encrypt">Encrypt connection</label></div>
         <div class="check"><input type="checkbox" id="trustCert" checked><label for="trustCert">Trust server certificate</label></div>

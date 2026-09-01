@@ -32,6 +32,8 @@ interface EditorContext {
 interface AliasTarget {
   schema?: string;
   name: string;
+  /** Original-case alias text when this entry was declared via an alias. */
+  aliasText?: string;
 }
 
 const IDENT = String.raw`(?:\[[^\]]+\]|"[^"]+"|[\w$]+)`;
@@ -55,10 +57,75 @@ function parseAliases(sql: string): Map<string, AliasTarget> {
     const target: AliasTarget = second ? { schema: first, name: second } : { name: first };
     map.set(target.name.toLowerCase(), target);
     if (alias) {
-      map.set(alias.toLowerCase(), target);
+      map.set(alias.toLowerCase(), { ...target, aliasText: alias });
     }
   }
   return map;
+}
+
+/** Text of the `;`/`GO`-delimited statement containing the cursor. */
+function currentStatement(document: vscode.TextDocument, position: vscode.Position): string {
+  const text = document.getText();
+  const offset = document.offsetAt(position);
+  const boundary = /;|^[ \t]*go[ \t]*\d*[ \t]*$/gim;
+  let start = 0;
+  let end = text.length;
+  for (const m of text.matchAll(boundary)) {
+    const idx = m.index ?? 0;
+    if (idx < offset) {
+      start = idx + m[0].length;
+    } else {
+      end = idx;
+      break;
+    }
+  }
+  return text.slice(start, end);
+}
+
+/** Short alias for a table name: initials of its words (`order_details` → `od`,
+ *  `OrderDetails` → `od`), skipping SQL keywords and names already in use. */
+function suggestAlias(name: string, taken: ReadonlySet<string>): string {
+  const parts = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[\s_-]+/)
+    .filter(Boolean);
+  let base = parts
+    .map((p) => p[0])
+    .join('')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  if (!base || /^\d/.test(base)) {
+    base = 't';
+  }
+  if (!taken.has(base) && !UPPERCASE_WORDS.has(base)) {
+    return base;
+  }
+  for (let i = 2; ; i++) {
+    const candidate = `${base}${i}`;
+    if (!taken.has(candidate) && !UPPERCASE_WORDS.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+function snippetEscape(s: string): string {
+  return s.replace(/[\\$}]/g, '\\$&');
+}
+
+/** True when the cursor sits right after FROM/JOIN (optionally mid-way through
+ *  a table name) — the spot where a completed table should get an alias.
+ *  `DELETE FROM` is excluded: an inline alias there is not portable T-SQL. */
+const FROM_TAIL_RE = new RegExp(
+  String.raw`\b(?:from|join)\s+(?:${IDENT}\s*\.\s*)?[\w$"\[\]]*$`,
+  'i',
+);
+
+function inTableClause(beforeCursor: string): boolean {
+  const m = FROM_TAIL_RE.exec(beforeCursor);
+  if (!m) {
+    return false;
+  }
+  return !/\bdelete\s+$/i.test(beforeCursor.slice(0, m.index));
 }
 
 export class SqlCompletionProvider implements vscode.CompletionItemProvider {
@@ -72,13 +139,16 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     document: vscode.TextDocument,
     position: vscode.Position,
   ): Promise<vscode.CompletionItem[]> {
-    if (
-      !vscode.workspace
-        .getConfiguration('databaseHub')
-        .get<boolean>('editor.suggestions', true)
-    ) {
+    const config = vscode.workspace.getConfiguration('databaseHub');
+    if (!config.get<boolean>('editor.suggestions', true)) {
       return [];
     }
+    const aliases = parseAliases(currentStatement(document, position));
+    const beforeCursor = document.getText(
+      new vscode.Range(new vscode.Position(0, 0), position),
+    );
+    const withAlias =
+      config.get<boolean>('editor.autoInsertAlias', true) && inTableClause(beforeCursor);
     const linePrefix = document.lineAt(position).text.slice(0, position.character);
     const member = linePrefix.match(
       new RegExp(String.raw`(${IDENT})\.[\w$]*$`),
@@ -86,9 +156,11 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     if (member) {
       const ident = stripQuotes(member[1]);
       // `1.` is a numeric literal being typed, not a member access.
-      return /^\d+$/.test(ident) ? [] : this.memberCompletions(document, ident);
+      return /^\d+$/.test(ident)
+        ? []
+        : this.memberCompletions(document, ident, aliases, withAlias);
     }
-    return this.topLevelCompletions(document);
+    return this.topLevelCompletions(document, aliases, withAlias);
   }
 
   private resolveContext(document: vscode.TextDocument): EditorContext | undefined {
@@ -123,12 +195,33 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
 
   private async topLevelCompletions(
     document: vscode.TextDocument,
+    aliases: ReadonlyMap<string, AliasTarget>,
+    withAlias: boolean,
   ): Promise<vscode.CompletionItem[]> {
     const ctx = this.resolveContext(document);
     const items: vscode.CompletionItem[] = [];
 
+    for (const target of aliases.values()) {
+      if (!target.aliasText) {
+        continue;
+      }
+      const item = new vscode.CompletionItem(
+        {
+          label: target.aliasText,
+          description: (target.schema ? `${target.schema}.` : '') + target.name,
+        },
+        vscode.CompletionItemKind.Variable,
+      );
+      item.detail = 'table alias';
+      // No trailing space: `.` typically follows and must stay adjacent so
+      // column completions trigger.
+      item.sortText = `0_${target.aliasText}`;
+      items.push(item);
+    }
+
     for (const phrase of KEYWORD_PHRASES) {
       const item = new vscode.CompletionItem(phrase, vscode.CompletionItemKind.Keyword);
+      item.insertText = `${phrase} `;
       item.sortText = `1_${phrase}`;
       items.push(item);
     }
@@ -150,8 +243,9 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     }
 
     if (ctx?.driver) {
+      const taken = withAlias ? new Set(aliases.keys()) : undefined;
       for (const obj of await this.listObjects(ctx)) {
-        items.push(this.objectItem(ctx, obj, false));
+        items.push(this.objectItem(ctx, obj, false, taken));
       }
     }
     return items;
@@ -161,6 +255,7 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     ctx: EditorContext,
     obj: DbObject,
     bareName: boolean,
+    aliasTaken?: ReadonlySet<string>,
   ): vscode.CompletionItem {
     const item = new vscode.CompletionItem(
       { label: obj.name, description: `${obj.schema}.${obj.name}` },
@@ -171,8 +266,16 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     const qualify = !bareName && obj.schema.toLowerCase() !== defaultSchema;
     const name = this.quoteIfNeeded(ctx, obj.name);
     const text = qualify ? `${this.quoteIfNeeded(ctx, obj.schema)}.${name}` : name;
-    item.insertText =
-      obj.type === 'function' ? new vscode.SnippetString(`${text}($0)`) : text;
+    if (obj.type === 'function') {
+      item.insertText = new vscode.SnippetString(`${text}($0)`);
+    } else if (aliasTaken && (obj.type === 'table' || obj.type === 'view')) {
+      const alias = suggestAlias(obj.name, aliasTaken);
+      item.insertText = new vscode.SnippetString(
+        `${snippetEscape(text)} \${1:${alias}} `,
+      );
+    } else {
+      item.insertText = `${text} `;
+    }
     item.filterText = obj.name;
     item.sortText = `2_${obj.name}`;
     return item;
@@ -197,6 +300,8 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
   private async memberCompletions(
     document: vscode.TextDocument,
     ident: string,
+    aliases: ReadonlyMap<string, AliasTarget>,
+    withAlias: boolean,
   ): Promise<vscode.CompletionItem[]> {
     const ctx = this.resolveContext(document);
     if (!ctx?.driver) {
@@ -207,11 +312,12 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
 
     const inSchema = objects.filter((o) => o.schema.toLowerCase() === lower);
     if (inSchema.length > 0) {
-      return inSchema.map((o) => this.objectItem(ctx, o, true));
+      const taken = withAlias ? new Set(aliases.keys()) : undefined;
+      return inSchema.map((o) => this.objectItem(ctx, o, true, taken));
     }
 
     const relations = objects.filter((o) => o.type === 'table' || o.type === 'view');
-    const target = parseAliases(document.getText()).get(lower);
+    const target = aliases.get(lower);
     const wantedSchema = target?.schema?.toLowerCase();
     const wantedName = (target?.name ?? ident).toLowerCase();
     const relation = relations.find(
@@ -240,7 +346,7 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
           (c.nullable ? '' : ' NOT NULL') +
           (c.isPrimaryKey ? ' · PK' : '') +
           (c.isIdentity ? ' · identity' : '');
-        item.insertText = this.quoteIfNeeded(ctx, c.name);
+        item.insertText = `${this.quoteIfNeeded(ctx, c.name)} `;
         item.sortText = `0_${c.name}`;
         return item;
       });

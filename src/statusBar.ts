@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ConnectionManager } from './connections/manager';
+import { ConnectionManager, defaultDatabase } from './connections/manager';
 import { EditorBinding } from './query/editorBinding';
 import { ENV_META } from './types';
 
@@ -39,7 +39,9 @@ export class StatusBar implements vscode.Disposable {
 
     const connected = this.manager.isConnected(profile.id);
     const env = ENV_META[profile.environment];
-    const db = resolved?.database || profile.database || 'all databases';
+    // Browse-all profile with nothing picked yet: show the database queries
+    // will actually hit by default (master / postgres).
+    const db = resolved?.database || defaultDatabase(profile);
     const endpoint = profile.port ? `${profile.host}:${profile.port}` : profile.host;
     const user =
       profile.authType === 'ntlm' && profile.domain

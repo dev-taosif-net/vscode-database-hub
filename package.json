@@ -559,6 +559,11 @@
           "default": true,
           "description": "Automatically uppercase SQL keywords as you type. Strings, comments, quoted identifiers and dotted references (alias.column) are left untouched."
         },
+        "databaseHub.editor.autoInsertAlias": {
+          "type": "boolean",
+          "default": true,
+          "description": "When completing a table or view name in a FROM/JOIN clause, also insert a short alias derived from the name (e.g. 'order_details od'). The alias is selected after insertion so it can be typed over; press Tab or Escape to keep it."
+        },
         "databaseHub.grid.pageSize": {
           "type": "number",
           "default": 200,

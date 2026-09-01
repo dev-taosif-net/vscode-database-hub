@@ -100,18 +100,25 @@ export function activate(context: vscode.ExtensionContext): void {
 
   /**
    * Resolve the database to run against. Fixed-database profiles answer
-   * immediately; browse-all profiles get a database quick pick.
+   * immediately; browse-all profiles get a database quick pick with the
+   * server default (master / postgres) preselected on top.
    * Returns undefined when the user dismissed the pick.
    */
   async function resolveDbContext(profile: ConnectionProfile): Promise<string | undefined> {
     if (profile.database) {
       return profile.database;
     }
+    const fallback = defaultDatabase(profile);
     const driver = await ensureConnected(profile);
     const databases = await cache.listDatabases(profile.id, driver);
-    return vscode.window.showQuickPick(databases, {
+    const items: vscode.QuickPickItem[] = [
+      { label: fallback, description: 'default' },
+      ...databases.filter((d) => d !== fallback).map((d) => ({ label: d })),
+    ];
+    const picked = await vscode.window.showQuickPick(items, {
       placeHolder: `Select a database on ${profile.name} (${profile.host})`,
     });
+    return picked?.label;
   }
 
   async function openSqlEditor(
@@ -171,10 +178,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }
     if (!database && !profile.database) {
-      database = await resolveDbContext(profile);
-      if (!database) {
-        return;
-      }
+      // No database chosen for this editor: run against the server default
+      // (master / postgres), like SSMS. The status bar picker can change it.
+      database = defaultDatabase(profile);
     }
     binding.bind(editor.document, profile.id, database);
     await executor.runSql(profile, sql, database);
