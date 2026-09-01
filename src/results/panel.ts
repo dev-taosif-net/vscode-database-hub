@@ -14,40 +14,45 @@ export interface RunMeta {
   sql?: string;
 }
 
-/** Single reusable webview panel hosting the results grid. */
-export class ResultsPanel {
-  private static instance: ResultsPanel | undefined;
+/** Webview view hosting the results grid as a tab in the bottom panel. */
+export class ResultsViewProvider implements vscode.WebviewViewProvider {
+  static readonly viewId = 'databaseHubResults';
 
+  private view: vscode.WebviewView | undefined;
+  private ready = false;
+  private lastMessage: unknown;
   private lastResultSets: ResultSet[] = [];
 
-  static show(extensionUri: vscode.Uri): ResultsPanel {
-    if (ResultsPanel.instance) {
-      ResultsPanel.instance.panel.reveal(vscode.ViewColumn.Two, true);
-      return ResultsPanel.instance;
-    }
-    const panel = vscode.window.createWebviewPanel(
-      'databaseHubResults',
-      'Database Hub Results',
-      { viewColumn: vscode.ViewColumn.Two, preserveFocus: true },
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'media')],
-      },
-    );
-    ResultsPanel.instance = new ResultsPanel(panel, extensionUri);
-    return ResultsPanel.instance;
+  constructor(private readonly extensionUri: vscode.Uri) {}
+
+  register(): vscode.Disposable {
+    return vscode.window.registerWebviewViewProvider(ResultsViewProvider.viewId, this, {
+      webviewOptions: { retainContextWhenHidden: true },
+    });
   }
 
-  private constructor(
-    private readonly panel: vscode.WebviewPanel,
-    extensionUri: vscode.Uri,
-  ) {
-    panel.webview.html = this.buildHtml(panel.webview, extensionUri);
-    panel.onDidDispose(() => {
-      ResultsPanel.instance = undefined;
+  resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.view = webviewView;
+    this.ready = false;
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'media')],
+    };
+    webviewView.webview.html = this.buildHtml(webviewView.webview);
+    webviewView.onDidDispose(() => {
+      this.view = undefined;
+      this.ready = false;
     });
-    panel.webview.onDidReceiveMessage((msg) => this.onMessage(msg));
+    webviewView.webview.onDidReceiveMessage((msg) => this.onMessage(msg));
+  }
+
+  /** Bring the Results panel tab into view, resolving the webview on first use. */
+  async reveal(): Promise<void> {
+    if (this.view) {
+      this.view.show(true);
+    } else {
+      await vscode.commands.executeCommand(`${ResultsViewProvider.viewId}.focus`);
+    }
   }
 
   showRunning(meta: RunMeta): void {
@@ -73,8 +78,16 @@ export class ResultsPanel {
     this.post({ type: 'error', meta, message });
   }
 
+  /**
+   * The view resolves lazily and its script loads async, so messages sent
+   * before the 'ready' handshake would be dropped. Keep the latest state
+   * message and replay it once the webview reports in.
+   */
   private post(message: unknown): void {
-    void this.panel.webview.postMessage(message);
+    this.lastMessage = message;
+    if (this.ready) {
+      void this.view?.webview.postMessage(message);
+    }
   }
 
   private async onMessage(msg: {
@@ -83,6 +96,13 @@ export class ResultsPanel {
     format?: 'csv' | 'excel';
     index?: number;
   }): Promise<void> {
+    if (msg.type === 'ready') {
+      this.ready = true;
+      if (this.lastMessage !== undefined) {
+        void this.view?.webview.postMessage(this.lastMessage);
+      }
+      return;
+    }
     if (msg.type === 'copy' && typeof msg.text === 'string') {
       await vscode.env.clipboard.writeText(msg.text);
       vscode.window.setStatusBarMessage('Database Hub: copied to clipboard', 2000);
@@ -112,9 +132,11 @@ export class ResultsPanel {
     }
   }
 
-  private buildHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
-    const css = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'results.css'));
-    const js = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'results.js'));
+  private buildHtml(webview: vscode.Webview): string {
+    const css = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'results.css'),
+    );
+    const js = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'results.js'));
     const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
     return `<!DOCTYPE html>
 <html lang="en">

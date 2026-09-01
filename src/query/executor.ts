@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ConnectionManager, defaultDatabase } from '../connections/manager';
 import { Driver, QueryCancelledError } from '../drivers/driver';
-import { ResultsPanel, RunMeta } from '../results/panel';
+import { ResultsViewProvider, RunMeta } from '../results/panel';
 import { HistoryStore } from '../history/store';
 import { ConnectionProfile, ENV_META, QueryRunResult } from '../types';
 import { analyzeSql, readOnlyViolation } from './safety';
@@ -44,7 +44,7 @@ export class Executor {
   constructor(
     private readonly manager: ConnectionManager,
     private readonly history: HistoryStore,
-    private readonly extensionUri: vscode.Uri,
+    private readonly resultsView: ResultsViewProvider,
   ) {}
 
   get isRunning(): boolean {
@@ -136,7 +136,8 @@ export class Executor {
 
     // Surface the panel before connecting so a slow first connect
     // still gives immediate visual feedback.
-    const panel = ResultsPanel.show(this.extensionUri);
+    const panel = this.resultsView;
+    await panel.reveal();
     panel.showRunning(this.buildMeta(profile, db));
 
     let driver: Driver;

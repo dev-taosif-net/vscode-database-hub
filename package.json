@@ -51,9 +51,24 @@
           "title": "Database Hub",
           "icon": "media/database.svg"
         }
+      ],
+      "panel": [
+        {
+          "id": "databaseHubPanel",
+          "title": "Database Hub",
+          "icon": "media/database.svg"
+        }
       ]
     },
     "views": {
+      "databaseHubPanel": [
+        {
+          "id": "databaseHubResults",
+          "name": "Results",
+          "type": "webview",
+          "icon": "media/database.svg"
+        }
+      ],
       "databaseHub": [
         {
           "id": "databaseHubConnections",

@@ -12,6 +12,7 @@ import { HistoryStore } from './history/store';
 import { HistoryView } from './history/view';
 import { EditorBinding } from './query/editorBinding';
 import { Executor } from './query/executor';
+import { ResultsViewProvider } from './results/panel';
 import { SnippetsView } from './snippets/view';
 import { StatusBar } from './statusBar';
 import {
@@ -32,10 +33,12 @@ export function activate(context: vscode.ExtensionContext): void {
   const historyStore = new HistoryStore(context);
   const favoritesStore = new FavoritesStore(context);
   const binding = new EditorBinding(store, manager);
-  const executor = new Executor(manager, historyStore, context.extensionUri);
+  const resultsView = new ResultsViewProvider(context.extensionUri);
+  const executor = new Executor(manager, historyStore, resultsView);
   const explorer = new ObjectExplorer(store, manager, cache);
 
   context.subscriptions.push(
+    resultsView.register(),
     vscode.window.createTreeView('databaseHubConnections', {
       treeDataProvider: explorer,
       showCollapseAll: true,

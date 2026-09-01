@@ -295,4 +295,8 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener('click', fn);
   }
+
+  // Panel views resolve lazily; the host buffers the latest state message
+  // until this handshake arrives, then replays it.
+  vscode.postMessage({ type: 'ready' });
 })();
