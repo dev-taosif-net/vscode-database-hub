@@ -40,11 +40,15 @@ export class StatusBar implements vscode.Disposable {
     const connected = this.manager.isConnected(profile.id);
     const env = ENV_META[profile.environment];
     const db = resolved?.database || profile.database || 'all databases';
-    this.item.text = `$(database) ${profile.name} · ${db}${profile.readOnly ? ' $(lock)' : ''}`;
     const endpoint = profile.port ? `${profile.host}:${profile.port}` : profile.host;
+    const user =
+      profile.authType === 'ntlm' && profile.domain
+        ? `${profile.domain}\\${profile.user}`
+        : profile.user;
+    this.item.text = `$(database) ${endpoint}/${db} · ${user}${profile.readOnly ? ' $(lock)' : ''}`;
     this.item.tooltip = new vscode.MarkdownString(
       `**${profile.name}** — ${profile.environment}${profile.readOnly ? ' (read only)' : ''}\n\n` +
-        `${endpoint}/${db}\n\n` +
+        `${endpoint}/${db} · ${user}\n\n` +
         `${connected ? '$(pass) Connected' : '$(circle-slash) Not connected'} — click to switch`,
       true,
     );

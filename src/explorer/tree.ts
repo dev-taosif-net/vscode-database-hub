@@ -145,7 +145,7 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
       item.description = `${profile.environment}${profile.readOnly ? ' 🔒' : ''} · ${profile.host}/${target}`;
       item.iconPath = new vscode.ThemeIcon(
         connected ? 'circle-filled' : 'circle-outline',
-        new vscode.ThemeColor(env.themeColor),
+        connected ? new vscode.ThemeColor(env.themeColor) : new vscode.ThemeColor('errorForeground'),
       );
       const endpoint = profile.port ? `${profile.host}:${profile.port}` : profile.host;
       item.tooltip = new vscode.MarkdownString(

@@ -549,6 +549,16 @@
           "minimum": 100,
           "description": "Maximum rows fetched per result set. Larger results are truncated to keep the UI fast."
         },
+        "databaseHub.editor.suggestions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest SQL keywords, built-in functions and connected-database objects (tables, views, procedures, columns) in SQL editors."
+        },
+        "databaseHub.editor.autoUppercaseKeywords": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically uppercase SQL keywords as you type. Strings, comments, quoted identifiers and dotted references (alias.column) are left untouched."
+        },
         "databaseHub.grid.pageSize": {
           "type": "number",
           "default": 200,

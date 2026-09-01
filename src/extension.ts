@@ -12,6 +12,7 @@ import { HistoryStore } from './history/store';
 import { HistoryView } from './history/view';
 import { EditorBinding } from './query/editorBinding';
 import { Executor } from './query/executor';
+import { registerAutoUppercase, SqlCompletionProvider } from './query/intellisense';
 import { ResultsViewProvider } from './results/panel';
 import { SnippetsView } from './snippets/view';
 import { StatusBar } from './statusBar';
@@ -39,6 +40,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     resultsView.register(),
+    vscode.languages.registerCompletionItemProvider(
+      'sql',
+      new SqlCompletionProvider(binding, manager, cache),
+      '.',
+    ),
+    registerAutoUppercase(),
     vscode.window.createTreeView('databaseHubConnections', {
       treeDataProvider: explorer,
       showCollapseAll: true,
