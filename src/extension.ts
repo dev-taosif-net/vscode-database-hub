@@ -13,6 +13,7 @@ import { HistoryView } from './history/view';
 import { EditorBinding } from './query/editorBinding';
 import { Executor } from './query/executor';
 import { registerAutoUppercase, SqlCompletionProvider } from './query/intellisense';
+import { analyzeUse } from './query/useStatement';
 import { ResultsViewProvider } from './results/panel';
 import { SnippetsView } from './snippets/view';
 import { StatusBar } from './statusBar';
@@ -147,6 +148,55 @@ export function activate(context: vscode.ExtensionContext): void {
       : `"${name.replace(/"/g, '""')}"`;
   }
 
+  /**
+   * Resolve a USE target against the server's database list, returning the
+   * canonical casing — or undefined when it doesn't exist / isn't accessible.
+   */
+  async function resolveServerDatabase(
+    profile: ConnectionProfile,
+    name: string,
+    current?: string,
+  ): Promise<string | undefined> {
+    const driver = mgr.getDriver(profile, current) ?? (await ensureConnected(profile));
+    const databases = await cache.listDatabases(profile.id, driver);
+    return databases.find((d) => d.toLowerCase() === name.toLowerCase());
+  }
+
+  /** Rewrite the "-- name (ENV) · host/db" header comment openSqlEditor inserts. */
+  async function updateHeaderComment(
+    editor: vscode.TextEditor,
+    profile: ConnectionProfile,
+    database: string,
+  ): Promise<void> {
+    const doc = editor.document;
+    const header = /^--\s*.+\((?:DEV|QA|UAT|PROD)\)\s*·\s*\S+\/\S+\s*$/;
+    for (let line = 0; line < Math.min(doc.lineCount, 5); line++) {
+      const text = doc.lineAt(line).text;
+      if (!text.trim()) {
+        continue;
+      }
+      if (header.test(text)) {
+        await editor.edit((edit) =>
+          edit.replace(
+            doc.lineAt(line).range,
+            `-- ${profile.name} (${profile.environment}) · ${profile.host}/${database}`,
+          ),
+        );
+      }
+      break; // only ever the first non-empty line
+    }
+  }
+
+  /** Point this tab (binding, status bar, header comment) at a new database. */
+  async function switchEditorDatabase(
+    editor: vscode.TextEditor,
+    profile: ConnectionProfile,
+    database: string,
+  ): Promise<void> {
+    binding.bind(editor.document, profile.id, database);
+    await updateHeaderComment(editor, profile, database);
+  }
+
   async function executeFromEditor(mode: 'smart' | 'all' | 'selection'): Promise<void> {
     const editor = vscode.window.activeTextEditor;
     if (!editor || editor.document.languageId !== 'sql') {
@@ -182,8 +232,38 @@ export function activate(context: vscode.ExtensionContext): void {
       // (master / postgres), like SSMS. The status bar picker can change it.
       database = defaultDatabase(profile);
     }
+
+    // SSMS-style USE handling: a bare `USE db` switches this tab's database
+    // context (binding, status bar, header comment) instead of being sent to
+    // the server, so every later query in the tab runs against that database.
+    const use = analyzeUse(sql);
+    if (use.onlyUse && use.database) {
+      const target = await resolveServerDatabase(profile, use.database, database);
+      if (!target) {
+        vscode.window.showErrorMessage(
+          `Database Hub: database "${use.database}" not found on ${profile.host} (or no access).`,
+        );
+        return;
+      }
+      await ensureConnected(profile, target);
+      await switchEditorDatabase(editor, profile, target);
+      vscode.window.showInformationMessage(
+        `Database Hub: changed database context to "${target}".`,
+      );
+      return;
+    }
+
     binding.bind(editor.document, profile.id, database);
     await executor.runSql(profile, sql, database);
+
+    // A USE inside a larger script already took effect server-side within the
+    // batch (MSSQL); keep the tab pointed at where the session ended up.
+    if (use.database && profile.type === 'mssql') {
+      const target = await resolveServerDatabase(profile, use.database, database);
+      if (target && target !== database) {
+        await switchEditorDatabase(editor, profile, target);
+      }
+    }
   }
 
   const register = (
