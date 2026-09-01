@@ -1,0 +1,166 @@
+body {
+  margin: 0;
+  padding: 0 24px 24px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.form {
+  max-width: 560px;
+}
+
+h1 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 20px 0 4px;
+}
+
+.subtitle {
+  color: var(--vscode-descriptionForeground);
+  margin: 0 0 18px;
+  font-size: 12px;
+}
+
+.section {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  padding: 12px 14px 14px;
+  margin-bottom: 14px;
+}
+
+.section legend,
+.section .legend {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground);
+  padding: 0 4px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+.row label {
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.row input[type='text'],
+.row input[type='password'],
+.row input[type='number'],
+.row select {
+  flex: 1;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 4px 8px;
+  border-radius: 2px;
+  font-family: inherit;
+  font-size: inherit;
+  outline-color: var(--vscode-focusBorder);
+}
+
+.row input.invalid {
+  border-color: var(--vscode-inputValidation-errorBorder, #d13438);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0 140px;
+}
+
+.check input {
+  margin: 0;
+}
+
+.hint {
+  margin: 2px 0 0 140px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.env-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  align-items: center;
+}
+
+button {
+  border: none;
+  padding: 6px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+button.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button.secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+button.secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+#status {
+  margin-top: 14px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  display: none;
+  white-space: pre-wrap;
+}
+
+#status.ok {
+  display: block;
+  background: color-mix(in srgb, #2ea043 15%, transparent);
+  color: var(--vscode-testing-iconPassed, #2ea043);
+}
+
+#status.err {
+  display: block;
+  background: color-mix(in srgb, #d13438 12%, transparent);
+  color: var(--vscode-errorForeground);
+}
+
+#status.busy {
+  display: block;
+  color: var(--vscode-descriptionForeground);
+}
+
+.hidden {
+  display: none !important;
+}

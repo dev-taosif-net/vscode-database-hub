@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
+import { ConnectionEditorHost, ConnectionEditorPanel } from './connections/editorPanel';
 import { ConnectionManager } from './connections/manager';
 import { ConnectionStore } from './connections/store';
-import { runConnectionWizard } from './connections/wizard';
+import { MssqlDriver } from './drivers/mssqlDriver';
+import { PostgresDriver } from './drivers/postgresDriver';
 import { MetadataCache } from './explorer/cache';
 import { HubNode, ObjectExplorer } from './explorer/tree';
 import { FavoritesStore } from './favorites/store';
@@ -162,37 +164,39 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ---------- connection commands ----------
 
-  register('databaseHub.addConnection', async () => {
-    const result = await runConnectionWizard();
-    if (!result) {
-      return;
-    }
-    await store.save(result.profile);
-    if (result.password !== undefined) {
-      await store.setPassword(result.profile.id, result.password);
-    }
-    explorer.refresh();
-    vscode.window.showInformationMessage(`Database Hub: added "${result.profile.name}".`);
+  const connectionEditorHost: ConnectionEditorHost = {
+    async save(profile, password) {
+      if (mgr.isConnected(profile.id)) {
+        await mgr.disconnect(profile.id);
+        cache.invalidateConnection(profile.id);
+      }
+      await store.save(profile);
+      if (password !== undefined) {
+        await store.setPassword(profile.id, password);
+      }
+      explorer.refresh();
+    },
+    async test(profile, password) {
+      const pw = password ?? (await store.getPassword(profile.id)) ?? '';
+      const driver =
+        profile.type === 'mssql' ? new MssqlDriver(profile) : new PostgresDriver(profile);
+      try {
+        await driver.connect(pw, { requestTimeoutMs: 15000 });
+      } finally {
+        await driver.disconnect().catch(() => undefined);
+      }
+    },
+  };
+
+  register('databaseHub.addConnection', () => {
+    ConnectionEditorPanel.show(context.extensionUri, connectionEditorHost);
   });
 
   register('databaseHub.editConnection', async (node?: HubNode) => {
     const existing = await resolveNodeProfile(node);
-    if (!existing) {
-      return;
+    if (existing) {
+      ConnectionEditorPanel.show(context.extensionUri, connectionEditorHost, existing);
     }
-    const result = await runConnectionWizard(existing);
-    if (!result) {
-      return;
-    }
-    if (mgr.isConnected(existing.id)) {
-      await mgr.disconnect(existing.id);
-      cache.invalidateConnection(existing.id);
-    }
-    await store.save(result.profile);
-    if (result.password !== undefined) {
-      await store.setPassword(result.profile.id, result.password);
-    }
-    explorer.refresh();
   });
 
   register('databaseHub.deleteConnection', async (node?: HubNode) => {

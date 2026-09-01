@@ -6,7 +6,7 @@ Fast, lightweight database tools for **Microsoft SQL Server** and **PostgreSQL**
 
 ### Connections
 - Unlimited connections to SQL Server and PostgreSQL.
-- Native multi-step wizard (no webview): name, environment, host, port, database, auth, read-only mode.
+- Add / Edit Connection opens a form in an editor tab — all fields on one page (name, environment, host, port, database, auth, encryption, read-only mode) with a **Test Connection** button.
 - SQL Login and Windows (NTLM) authentication for SQL Server.
 - Passwords are stored only in VS Code **Secret Storage** (OS keychain), never in settings.
 
@@ -80,7 +80,7 @@ Press **F5** ("Run Extension") to launch the Extension Development Host, open th
 
 ## Architecture notes
 
-- **Two runtime dependencies** (`mssql`, `pg` — both pure JS), bundled to a single file with esbuild. No frameworks, no webview UI except the results grid (vanilla JS).
+- **Two runtime dependencies** (`mssql`, `pg` — both pure JS), bundled to a single file with esbuild. No frameworks — the only webviews are the results grid and the connection editor, both plain vanilla JS.
 - Activation only on `onLanguage:sql` or opening a Database Hub view; startup impact is near zero.
 - One connection pool per profile (max 4), created lazily on first use.
 - Metadata queries fetch one object type per round-trip and are cached per connection; the explorer tree, object search and schema mode all read from the same cache.

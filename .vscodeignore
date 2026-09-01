@@ -5,3 +5,4 @@ esbuild.js
 tsconfig.json
 **/*.map
 .gitignore
+CLAUDE.md
