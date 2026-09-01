@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ConnectionManager } from '../connections/manager';
+import { ConnectionManager, defaultDatabase } from '../connections/manager';
 import { Driver, QueryCancelledError } from '../drivers/driver';
 import { ResultsPanel, RunMeta } from '../results/panel';
 import { HistoryStore } from '../history/store';
@@ -55,13 +55,13 @@ export class Executor {
     await this.runningDriver?.cancelRunning();
   }
 
-  private buildMeta(profile: ConnectionProfile, durationMs?: number): RunMeta {
+  private buildMeta(profile: ConnectionProfile, database: string, durationMs?: number): RunMeta {
     return {
       connectionName: profile.name,
       environment: profile.environment,
       envHex: ENV_META[profile.environment].hex,
       server: profile.host,
-      database: profile.database,
+      database,
       readOnly: profile.readOnly,
       durationMs,
     };
@@ -118,7 +118,8 @@ export class Executor {
   }
 
   /** Execute SQL on a profile: safety gates, progress + cancel, grid, history. */
-  async runSql(profile: ConnectionProfile, sql: string): Promise<void> {
+  async runSql(profile: ConnectionProfile, sql: string, database?: string): Promise<void> {
+    const db = database || defaultDatabase(profile);
     if (!sql.trim()) {
       vscode.window.showInformationMessage('Database Hub: nothing to execute.');
       return;
@@ -136,14 +137,14 @@ export class Executor {
     // Surface the panel before connecting so a slow first connect
     // still gives immediate visual feedback.
     const panel = ResultsPanel.show(this.extensionUri);
-    panel.showRunning(this.buildMeta(profile));
+    panel.showRunning(this.buildMeta(profile, db));
 
     let driver: Driver;
     try {
-      driver = await this.manager.connect(profile);
+      driver = await this.manager.connect(profile, db);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      panel.showError(this.buildMeta(profile), message);
+      panel.showError(this.buildMeta(profile, db), message);
       throw err;
     }
     const maxRows = vscode.workspace
@@ -177,13 +178,13 @@ export class Executor {
       }
 
       const rowCount = result.resultSets.reduce((n, rs) => n + rs.rows.length, 0);
-      panel.showResults(this.buildMeta(profile, result.durationMs), result);
+      panel.showResults(this.buildMeta(profile, db, result.durationMs), result);
       await this.history.add({
         sql,
         connectionId: profile.id,
         connectionName: profile.name,
         environment: profile.environment,
-        database: profile.database,
+        database: db,
         startedAt,
         durationMs: result.durationMs,
         success: true,
@@ -197,13 +198,13 @@ export class Executor {
         : err instanceof Error
           ? err.message
           : String(err);
-      panel.showError(this.buildMeta(profile, durationMs), message);
+      panel.showError(this.buildMeta(profile, db, durationMs), message);
       await this.history.add({
         sql,
         connectionId: profile.id,
         connectionName: profile.name,
         environment: profile.environment,
-        database: profile.database,
+        database: db,
         startedAt,
         durationMs,
         success: false,

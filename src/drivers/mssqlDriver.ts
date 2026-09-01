@@ -34,14 +34,26 @@ export class MssqlDriver implements Driver {
   private currentRequest?: sql.Request;
   private userCancelled = false;
 
-  constructor(readonly profile: ConnectionProfile) {}
+  constructor(
+    readonly profile: ConnectionProfile,
+    readonly database: string,
+  ) {}
 
   async connect(password: string, opts: ConnectOptions): Promise<void> {
     const p = this.profile;
+    // "host\INSTANCE" targets a named instance via SQL Browser; a named
+    // instance and an explicit port are mutually exclusive in tedious.
+    let server = p.host;
+    let instanceName: string | undefined;
+    const backslash = server.indexOf('\\');
+    if (backslash > 0) {
+      instanceName = server.slice(backslash + 1);
+      server = server.slice(0, backslash);
+    }
     const config: sql.config = {
-      server: p.host,
-      port: p.port,
-      database: p.database,
+      server,
+      port: instanceName ? undefined : p.port,
+      database: this.database,
       connectionTimeout: 15000,
       requestTimeout: opts.requestTimeoutMs,
       pool: { max: 4, min: 0, idleTimeoutMillis: 30000 },
@@ -50,6 +62,7 @@ export class MssqlDriver implements Driver {
         trustServerCertificate: p.trustServerCertificate ?? true,
         appName: 'VSCode Database Hub',
         enableArithAbort: true,
+        instanceName,
       },
     };
     if (p.authType === 'ntlm') {
@@ -189,6 +202,15 @@ export class MssqlDriver implements Driver {
     }
     const result = await request.query(text);
     return result.recordset as unknown as Record<string, unknown>[];
+  }
+
+  async listDatabases(): Promise<string[]> {
+    const rows = await this.metaQuery(
+      `SELECT name FROM sys.databases
+       WHERE state = 0 AND HAS_DBACCESS(name) = 1
+       ORDER BY CASE WHEN name IN ('master','model','msdb','tempdb') THEN 1 ELSE 0 END, name`,
+    );
+    return rows.map((r) => String(r.name));
   }
 
   async listObjects(type: ObjectType): Promise<DbObject[]> {

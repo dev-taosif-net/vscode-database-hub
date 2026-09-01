@@ -22,8 +22,11 @@ export interface ConnectionProfile {
   name: string;
   type: DbType;
   environment: Environment;
+  /** May include a SQL Server named instance: host\INSTANCE */
   host: string;
-  port: number;
+  /** Blank = driver default (1433 / 5432) or SQL Browser for named instances */
+  port?: number;
+  /** Empty string = no fixed database; the explorer shows every database on the server */
   database: string;
   user: string;
   /** SQL Server only: 'sql' (default) or 'ntlm' for Windows auth */
@@ -112,6 +115,7 @@ export interface FavoriteEntry {
   label: string;
   connectionId?: string;
   connectionName?: string;
+  database?: string;
   objectType?: ObjectType;
   schema?: string;
   name?: string;

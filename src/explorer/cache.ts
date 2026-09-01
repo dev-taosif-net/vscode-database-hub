@@ -8,7 +8,7 @@ interface CacheEntry {
 }
 
 /**
- * In-memory metadata cache. One entry per (connection, query-kind).
+ * In-memory metadata cache. One entry per (connection, database, query-kind).
  * Entries never block the tree once loaded: stale data is served
  * immediately and refreshed in the background.
  */
@@ -27,28 +27,39 @@ export class MetadataCache {
     );
   }
 
-  listObjects(connectionId: string, driver: Driver, type: ObjectType): Promise<DbObject[]> {
-    return this.fetch(connectionId, `objects:${type}`, () => driver.listObjects(type));
+  listDatabases(connectionId: string, driver: Driver): Promise<string[]> {
+    return this.fetch(connectionId, 'databases', () => driver.listDatabases());
+  }
+
+  listObjects(
+    connectionId: string,
+    database: string,
+    driver: Driver,
+    type: ObjectType,
+  ): Promise<DbObject[]> {
+    return this.fetch(connectionId, `${database}|objects:${type}`, () => driver.listObjects(type));
   }
 
   listColumns(
     connectionId: string,
+    database: string,
     driver: Driver,
     schema: string,
     table: string,
   ): Promise<ColumnInfo[]> {
-    return this.fetch(connectionId, `columns:${schema}.${table}`, () =>
+    return this.fetch(connectionId, `${database}|columns:${schema}.${table}`, () =>
       driver.listColumns(schema, table),
     );
   }
 
   listParameters(
     connectionId: string,
+    database: string,
     driver: Driver,
     schema: string,
     routine: string,
   ): Promise<ParameterInfo[]> {
-    return this.fetch(connectionId, `params:${schema}.${routine}`, () =>
+    return this.fetch(connectionId, `${database}|params:${schema}.${routine}`, () =>
       driver.listParameters(schema, routine),
     );
   }

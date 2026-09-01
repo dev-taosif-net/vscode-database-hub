@@ -3,12 +3,23 @@ import { ConnectionManager } from '../connections/manager';
 import { ConnectionStore } from '../connections/store';
 import { ConnectionProfile } from '../types';
 
+interface Binding {
+  connectionId: string;
+  /** Chosen database for browse-all profiles */
+  database?: string;
+}
+
+export interface ResolvedBinding {
+  profile: ConnectionProfile;
+  database?: string;
+}
+
 /**
- * Tracks which connection each SQL editor talks to.
+ * Tracks which connection (and database) each SQL editor talks to.
  * Falls back to the globally active connection.
  */
 export class EditorBinding {
-  private readonly byDocument = new Map<string, string>();
+  private readonly byDocument = new Map<string, Binding>();
 
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
@@ -22,24 +33,29 @@ export class EditorBinding {
     });
   }
 
-  bind(doc: vscode.TextDocument, connectionId: string): void {
-    this.byDocument.set(doc.uri.toString(), connectionId);
+  bind(doc: vscode.TextDocument, connectionId: string, database?: string): void {
+    this.byDocument.set(doc.uri.toString(), { connectionId, database });
     this.manager.setActive(connectionId);
     this._onDidChange.fire();
   }
 
-  getProfileFor(doc: vscode.TextDocument | undefined): ConnectionProfile | undefined {
+  getBindingFor(doc: vscode.TextDocument | undefined): ResolvedBinding | undefined {
     if (doc) {
       const bound = this.byDocument.get(doc.uri.toString());
       if (bound) {
-        const profile = this.store.get(bound);
+        const profile = this.store.get(bound.connectionId);
         if (profile) {
-          return profile;
+          return { profile, database: bound.database };
         }
         this.byDocument.delete(doc.uri.toString());
       }
     }
     const activeId = this.manager.activeConnectionId;
-    return activeId ? this.store.get(activeId) : undefined;
+    const profile = activeId ? this.store.get(activeId) : undefined;
+    return profile ? { profile } : undefined;
+  }
+
+  getProfileFor(doc: vscode.TextDocument | undefined): ConnectionProfile | undefined {
+    return this.getBindingFor(doc)?.profile;
   }
 }

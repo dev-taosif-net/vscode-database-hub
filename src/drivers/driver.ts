@@ -18,15 +18,20 @@ export interface ConnectOptions {
 }
 
 /**
- * One driver instance == one connection pool for one profile.
+ * One driver instance == one connection pool for one profile+database.
  * All metadata calls return everything for the database in a single
  * round-trip so results can be cached aggressively.
  */
 export interface Driver {
   readonly profile: ConnectionProfile;
+  /** The database this pool is connected to */
+  readonly database: string;
 
   connect(password: string, opts: ConnectOptions): Promise<void>;
   disconnect(): Promise<void>;
+
+  /** All accessible databases on the server */
+  listDatabases(): Promise<string[]>;
 
   execute(sql: string, opts: QueryOptions): Promise<QueryRunResult>;
   /** Cancel the currently running execute(), if any */

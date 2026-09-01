@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ConnectionProfile, DbType, Environment } from '../types';
+import { parseConnectionString } from './connectionString';
 
 /** Raw values posted by the form */
 interface FormData {
@@ -8,7 +9,7 @@ interface FormData {
   type: DbType;
   environment: Environment;
   host: string;
-  port: number;
+  port?: number;
   database: string;
   authType: 'sql' | 'ntlm';
   domain: string;
@@ -104,13 +105,30 @@ export class ConnectionEditorPanel {
     return this.existing && data.password === '' ? undefined : data.password;
   }
 
-  private async onMessage(msg: { type: string; data?: FormData }): Promise<void> {
+  private async onMessage(msg: {
+    type: string;
+    data?: FormData;
+    value?: string;
+  }): Promise<void> {
     if (msg.type === 'ready') {
       this.postInit();
       return;
     }
     if (msg.type === 'cancel') {
       this.panel.dispose();
+      return;
+    }
+    if (msg.type === 'parse') {
+      try {
+        const fields = parseConnectionString(msg.value ?? '');
+        void this.panel.webview.postMessage({ type: 'parsed', fields });
+      } catch (err) {
+        void this.panel.webview.postMessage({
+          type: 'testResult',
+          ok: false,
+          message: `✗ ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
       return;
     }
     if (!msg.data) {
@@ -175,6 +193,12 @@ export class ConnectionEditorPanel {
   <p class="subtitle" id="subtitle"></p>
 
   <div class="section">
+    <div class="legend">Import</div>
+    <div class="row"><label for="connString">Connection string</label><input type="text" id="connString" placeholder="Paste a connection string…"><button id="parse" class="secondary">Parse</button></div>
+    <p class="hint">Optional — supports ADO.NET, Npgsql, JDBC, postgres:// URLs and conninfo. Parsing fills the fields below.</p>
+  </div>
+
+  <div class="section">
     <div class="legend">General</div>
     <div class="row"><label for="name">Name</label><input type="text" id="name" placeholder="e.g. Orders DEV"></div>
     <div class="row"><label for="type">Database type</label>
@@ -196,9 +220,11 @@ export class ConnectionEditorPanel {
 
   <div class="section">
     <div class="legend">Server</div>
-    <div class="row"><label for="host">Host</label><input type="text" id="host"></div>
+    <div class="row"><label for="host">Host</label><input type="text" id="host" placeholder="hostname, or host\\INSTANCE for SQL Server"></div>
     <div class="row"><label for="port">Port</label><input type="number" id="port" min="1" max="65535"></div>
-    <div class="row"><label for="database">Database</label><input type="text" id="database"></div>
+    <p class="hint">Optional — leave blank for the server default (1433 / 5432) or a named instance.</p>
+    <div class="row"><label for="database">Database</label><input type="text" id="database" placeholder="optional"></div>
+    <p class="hint">Optional — leave blank to browse all databases on the server.</p>
     <div id="mssql-opts">
       <div class="check"><input type="checkbox" id="encrypt" checked><label for="encrypt">Encrypt connection</label></div>
       <div class="check"><input type="checkbox" id="trustCert" checked><label for="trustCert">Trust server certificate</label></div>

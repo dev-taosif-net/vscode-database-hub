@@ -25,7 +25,8 @@ export class StatusBar implements vscode.Disposable {
   update(): void {
     const editor = vscode.window.activeTextEditor;
     const doc = editor?.document.languageId === 'sql' ? editor.document : undefined;
-    const profile = this.binding.getProfileFor(doc);
+    const resolved = this.binding.getBindingFor(doc);
+    const profile = resolved?.profile;
 
     if (!profile) {
       this.item.text = '$(database) No connection';
@@ -38,10 +39,12 @@ export class StatusBar implements vscode.Disposable {
 
     const connected = this.manager.isConnected(profile.id);
     const env = ENV_META[profile.environment];
-    this.item.text = `$(database) ${profile.name} · ${profile.database}${profile.readOnly ? ' $(lock)' : ''}`;
+    const db = resolved?.database || profile.database || 'all databases';
+    this.item.text = `$(database) ${profile.name} · ${db}${profile.readOnly ? ' $(lock)' : ''}`;
+    const endpoint = profile.port ? `${profile.host}:${profile.port}` : profile.host;
     this.item.tooltip = new vscode.MarkdownString(
       `**${profile.name}** — ${profile.environment}${profile.readOnly ? ' (read only)' : ''}\n\n` +
-        `${profile.host}:${profile.port}/${profile.database}\n\n` +
+        `${endpoint}/${db}\n\n` +
         `${connected ? '$(pass) Connected' : '$(circle-slash) Not connected'} — click to switch`,
       true,
     );

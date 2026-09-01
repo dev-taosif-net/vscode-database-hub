@@ -7,6 +7,9 @@ Fast, lightweight database tools for **Microsoft SQL Server** and **PostgreSQL**
 ### Connections
 - Unlimited connections to SQL Server and PostgreSQL.
 - Add / Edit Connection opens a form in an editor tab — all fields on one page (name, environment, host, port, database, auth, encryption, read-only mode) with a **Test Connection** button.
+- **Add by connection string**: paste an ADO.NET, Npgsql, JDBC, `postgres://` URL or libpq conninfo string and hit Parse — the form fills itself.
+- **Port is optional**: blank means the driver default (1433 / 5432). SQL Server named instances work via `host\INSTANCE` (SQL Browser resolves the port).
+- **Database is optional**: leave it blank and the explorer shows every database on the server; each database gets its own lazy connection pool and metadata cache. Executing a query on such a connection asks once which database to use and remembers it per editor.
 - SQL Login and Windows (NTLM) authentication for SQL Server.
 - Passwords are stored only in VS Code **Secret Storage** (OS keychain), never in settings.
 
@@ -28,6 +31,7 @@ Safety features:
 ### Object Explorer
 - Activity bar container with **Connections / Query History / Favorites / Snippets** views.
 - Lazy tree: `Connection → Tables / Views / Procedures / Functions / Triggers / Sequences → columns / parameters`. Nothing loads until you expand it.
+- Connections without a fixed database add a databases level: `Connection → Databases → …` — expanding a database connects to it on demand.
 - **Schema Focus Mode** (toggle in the view title): group by schema instead of object type — ideal for databases with 100+ schemas.
 - Metadata cache with TTL (`databaseHub.metadata.cacheTtlMinutes`): stale data is served instantly and refreshed in the background, so the tree never blocks.
 - Context actions: SELECT Top 1000, Script as CREATE, Copy Qualified Name, Add to Favorites, per-connection Refresh.

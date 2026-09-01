@@ -6,8 +6,16 @@ import { ConnectionProfile } from '../types';
 import { ConnectionStore } from './store';
 
 /**
- * Tracks live connections (one pooled driver per profile) and the
- * "active" connection used as default for new editors.
+ * The database a profile talks to when none was chosen: the profile's own
+ * database, or the server maintenance database for browse-all profiles.
+ */
+export function defaultDatabase(profile: ConnectionProfile): string {
+  return profile.database || (profile.type === 'mssql' ? 'master' : 'postgres');
+}
+
+/**
+ * Tracks live connections — one pooled driver per (profile, database) —
+ * and the "active" connection used as default for new editors.
  */
 export class ConnectionManager {
   private readonly drivers = new Map<string, Driver>();
@@ -19,12 +27,23 @@ export class ConnectionManager {
 
   constructor(private readonly store: ConnectionStore) {}
 
-  isConnected(id: string): boolean {
-    return this.drivers.has(id);
+  private key(profileId: string, database: string): string {
+    return `${profileId}::${database}`;
   }
 
-  getDriver(id: string): Driver | undefined {
-    return this.drivers.get(id);
+  /** True when any database of this profile has a live pool */
+  isConnected(profileId: string): boolean {
+    const prefix = `${profileId}::`;
+    for (const k of this.drivers.keys()) {
+      if (k.startsWith(prefix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getDriver(profile: ConnectionProfile, database?: string): Driver | undefined {
+    return this.drivers.get(this.key(profile.id, database ?? defaultDatabase(profile)));
   }
 
   get activeConnectionId(): string | undefined {
@@ -36,26 +55,24 @@ export class ConnectionManager {
     this._onDidChange.fire();
   }
 
-  connectedIds(): string[] {
-    return [...this.drivers.keys()];
-  }
-
-  /** Connect (or return the live driver) for a profile. Prompts for a missing password. */
-  async connect(profile: ConnectionProfile): Promise<Driver> {
-    const existing = this.drivers.get(profile.id);
+  /** Connect (or return the live driver) for a profile+database. Prompts for a missing password. */
+  async connect(profile: ConnectionProfile, database?: string): Promise<Driver> {
+    const db = database ?? defaultDatabase(profile);
+    const key = this.key(profile.id, db);
+    const existing = this.drivers.get(key);
     if (existing) {
       return existing;
     }
-    const inFlight = this.connecting.get(profile.id);
+    const inFlight = this.connecting.get(key);
     if (inFlight) {
       return inFlight;
     }
-    const task = this.doConnect(profile).finally(() => this.connecting.delete(profile.id));
-    this.connecting.set(profile.id, task);
+    const task = this.doConnect(profile, db, key).finally(() => this.connecting.delete(key));
+    this.connecting.set(key, task);
     return task;
   }
 
-  private async doConnect(profile: ConnectionProfile): Promise<Driver> {
+  private async doConnect(profile: ConnectionProfile, database: string, key: string): Promise<Driver> {
     let password = await this.store.getPassword(profile.id);
     if (password === undefined) {
       password = await vscode.window.showInputBox({
@@ -70,7 +87,9 @@ export class ConnectionManager {
     }
 
     const driver: Driver =
-      profile.type === 'mssql' ? new MssqlDriver(profile) : new PostgresDriver(profile);
+      profile.type === 'mssql'
+        ? new MssqlDriver(profile, database)
+        : new PostgresDriver(profile, database);
 
     const timeoutSeconds = vscode.workspace
       .getConfiguration('databaseHub')
@@ -87,23 +106,31 @@ export class ConnectionManager {
       throw err;
     }
 
-    this.drivers.set(profile.id, driver);
+    this.drivers.set(key, driver);
     this.activeId = profile.id;
     this._onDidChange.fire();
     return driver;
   }
 
-  async disconnect(id: string): Promise<void> {
-    const driver = this.drivers.get(id);
-    if (!driver) {
+  /** Close every pool belonging to this profile */
+  async disconnect(profileId: string): Promise<void> {
+    const prefix = `${profileId}::`;
+    const closing: Driver[] = [];
+    for (const [k, driver] of this.drivers) {
+      if (k.startsWith(prefix)) {
+        closing.push(driver);
+        this.drivers.delete(k);
+      }
+    }
+    if (closing.length === 0) {
       return;
     }
-    this.drivers.delete(id);
-    if (this.activeId === id) {
-      this.activeId = this.connectedIds()[0];
+    if (this.activeId === profileId) {
+      const next = this.drivers.keys().next();
+      this.activeId = next.done ? undefined : next.value.split('::')[0];
     }
     this._onDidChange.fire();
-    await driver.disconnect().catch(() => undefined);
+    await Promise.allSettled(closing.map((d) => d.disconnect()));
   }
 
   async disposeAll(): Promise<void> {

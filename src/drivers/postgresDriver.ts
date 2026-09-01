@@ -24,7 +24,10 @@ export class PostgresDriver implements Driver {
   private currentPid?: number;
   private userCancelled = false;
 
-  constructor(readonly profile: ConnectionProfile) {}
+  constructor(
+    readonly profile: ConnectionProfile,
+    readonly database: string,
+  ) {}
 
   async connect(password: string, opts: ConnectOptions): Promise<void> {
     const p = this.profile;
@@ -33,7 +36,7 @@ export class PostgresDriver implements Driver {
     this.pool = new Pool({
       host: p.host,
       port: p.port,
-      database: p.database,
+      database: this.database,
       user: p.user,
       password,
       max: 4,
@@ -133,7 +136,7 @@ export class PostgresDriver implements Driver {
     const cancelClient = new Client({
       host: p.host,
       port: p.port,
-      database: p.database,
+      database: this.database,
       user: p.user,
       password: this.password,
       ssl: p.ssl ? { rejectUnauthorized: false } : undefined,
@@ -153,6 +156,15 @@ export class PostgresDriver implements Driver {
   ): Promise<Record<string, unknown>[]> {
     const result = await this.getPool().query(text, params);
     return result.rows as Record<string, unknown>[];
+  }
+
+  async listDatabases(): Promise<string[]> {
+    const rows = await this.metaQuery(
+      `SELECT datname FROM pg_database
+       WHERE datallowconn AND NOT datistemplate
+       ORDER BY datname`,
+    );
+    return rows.map((r) => String(r.datname));
   }
 
   async listObjects(type: ObjectType): Promise<DbObject[]> {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ConnectionEditorHost, ConnectionEditorPanel } from './connections/editorPanel';
-import { ConnectionManager } from './connections/manager';
+import { ConnectionManager, defaultDatabase } from './connections/manager';
 import { ConnectionStore } from './connections/store';
 import { MssqlDriver } from './drivers/mssqlDriver';
 import { PostgresDriver } from './drivers/postgresDriver';
@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const picked = await vscode.window.showQuickPick(
       profiles.map((p) => ({
         label: `$(database) ${p.name}`,
-        description: `[${p.environment}]${p.readOnly ? ' 🔒' : ''} ${p.host}/${p.database}`,
+        description: `[${p.environment}]${p.readOnly ? ' 🔒' : ''} ${p.host}/${p.database || 'all databases'}`,
         detail: mgr.isConnected(p.id) ? 'Connected' : undefined,
         profile: p,
       })),
@@ -74,27 +74,45 @@ export function activate(context: vscode.ExtensionContext): void {
     return picked?.profile;
   }
 
-  async function ensureConnected(profile: ConnectionProfile) {
-    if (mgr.isConnected(profile.id)) {
-      return mgr.getDriver(profile.id)!;
+  async function ensureConnected(profile: ConnectionProfile, database?: string) {
+    const existing = mgr.getDriver(profile, database);
+    if (existing) {
+      return existing;
     }
     return vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
         title: `Connecting to ${profile.name} (${profile.environment})…`,
       },
-      () => mgr.connect(profile),
+      () => mgr.connect(profile, database),
     );
+  }
+
+  /**
+   * Resolve the database to run against. Fixed-database profiles answer
+   * immediately; browse-all profiles get a database quick pick.
+   * Returns undefined when the user dismissed the pick.
+   */
+  async function resolveDbContext(profile: ConnectionProfile): Promise<string | undefined> {
+    if (profile.database) {
+      return profile.database;
+    }
+    const driver = await ensureConnected(profile);
+    const databases = await cache.listDatabases(profile.id, driver);
+    return vscode.window.showQuickPick(databases, {
+      placeHolder: `Select a database on ${profile.name} (${profile.host})`,
+    });
   }
 
   async function openSqlEditor(
     content: string,
     profile?: ConnectionProfile,
+    database?: string,
   ): Promise<vscode.TextDocument> {
     const doc = await vscode.workspace.openTextDocument({ language: 'sql', content });
     await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
     if (profile) {
-      binding.bind(doc, profile.id);
+      binding.bind(doc, profile.id, database);
     }
     return doc;
   }
@@ -133,15 +151,23 @@ export function activate(context: vscode.ExtensionContext): void {
         : editor.document.getText(editor.selection);
     }
 
-    let profile = binding.getProfileFor(editor.document);
+    const resolved = binding.getBindingFor(editor.document);
+    let profile = resolved?.profile;
+    let database = resolved?.database;
     if (!profile) {
       profile = await pickProfile('Select a connection for this editor');
       if (!profile) {
         return;
       }
-      binding.bind(editor.document, profile.id);
     }
-    await executor.runSql(profile, sql);
+    if (!database && !profile.database) {
+      database = await resolveDbContext(profile);
+      if (!database) {
+        return;
+      }
+    }
+    binding.bind(editor.document, profile.id, database);
+    await executor.runSql(profile, sql, database);
   }
 
   const register = (
@@ -178,8 +204,9 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     async test(profile, password) {
       const pw = password ?? (await store.getPassword(profile.id)) ?? '';
+      const db = defaultDatabase(profile);
       const driver =
-        profile.type === 'mssql' ? new MssqlDriver(profile) : new PostgresDriver(profile);
+        profile.type === 'mssql' ? new MssqlDriver(profile, db) : new PostgresDriver(profile, db);
       try {
         await driver.connect(pw, { requestTimeoutMs: 15000 });
       } finally {
@@ -238,10 +265,15 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!profile) {
       return;
     }
-    await ensureConnected(profile);
+    const database = node?.kind === 'database' ? node.database : await resolveDbContext(profile);
+    if (!database) {
+      return;
+    }
+    await ensureConnected(profile, database);
     await openSqlEditor(
-      `-- ${profile.name} (${profile.environment}) · ${profile.host}/${profile.database}\n\n`,
+      `-- ${profile.name} (${profile.environment}) · ${profile.host}/${database}\n\n`,
       profile,
+      database,
     );
   });
 
@@ -278,10 +310,10 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!profile) {
       return;
     }
-    const driver = await ensureConnected(profile);
+    const driver = await ensureConnected(profile, node.database);
     const sql = driver.buildSelectTop(node.obj.schema, node.obj.name, 1000);
-    await openSqlEditor(sql, profile);
-    await executor.runSql(profile, sql);
+    await openSqlEditor(sql, profile, node.database);
+    await executor.runSql(profile, sql, node.database);
   });
 
   register('databaseHub.scriptCreate', async (node?: HubNode) => {
@@ -292,9 +324,9 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!profile) {
       return;
     }
-    const driver = await ensureConnected(profile);
+    const driver = await ensureConnected(profile, node.database);
     const definition = await driver.getDefinition(node.obj);
-    await openSqlEditor(definition, profile);
+    await openSqlEditor(definition, profile, node.database);
   });
 
   register('databaseHub.copyObjectName', async (node?: HubNode) => {
@@ -320,6 +352,7 @@ export function activate(context: vscode.ExtensionContext): void {
       label: `${node.obj.schema}.${node.obj.name}`,
       connectionId: node.connectionId,
       connectionName: profile?.name,
+      database: node.database,
       objectType: node.obj.type,
       schema: node.obj.schema,
       name: node.obj.name,
@@ -332,7 +365,11 @@ export function activate(context: vscode.ExtensionContext): void {
     if (!profile) {
       return;
     }
-    const driver = await ensureConnected(profile);
+    const database = await resolveDbContext(profile);
+    if (!database) {
+      return;
+    }
+    const driver = await ensureConnected(profile, database);
     const types: ObjectType[] = ['table', 'view', 'procedure', 'function', 'trigger', 'sequence'];
     const icon: Record<ObjectType, string> = {
       table: 'table',
@@ -343,7 +380,7 @@ export function activate(context: vscode.ExtensionContext): void {
       sequence: 'list-ordered',
     };
     const lists = await Promise.all(
-      types.map((t) => cache.listObjects(profile.id, driver, t)),
+      types.map((t) => cache.listObjects(profile.id, database, driver, t)),
     );
     const items = lists.flat().map((o) => ({
       label: `$(${icon[o.type]}) ${o.schema}.${o.name}`,
@@ -351,7 +388,7 @@ export function activate(context: vscode.ExtensionContext): void {
       obj: o,
     }));
     const picked = await vscode.window.showQuickPick(items, {
-      placeHolder: `Search ${items.length.toLocaleString()} objects in ${profile.name}…`,
+      placeHolder: `Search ${items.length.toLocaleString()} objects in ${profile.name}/${database}…`,
       matchOnDescription: true,
     });
     if (!picked) {
@@ -360,11 +397,11 @@ export function activate(context: vscode.ExtensionContext): void {
     const o: DbObject = picked.obj;
     if (o.type === 'table' || o.type === 'view') {
       const sql = driver.buildSelectTop(o.schema, o.name, 1000);
-      await openSqlEditor(sql, profile);
-      await executor.runSql(profile, sql);
+      await openSqlEditor(sql, profile, database);
+      await executor.runSql(profile, sql, database);
     } else if (o.type === 'procedure' || o.type === 'function') {
       const definition = await driver.getDefinition(o);
-      await openSqlEditor(definition, profile);
+      await openSqlEditor(definition, profile, database);
     } else {
       await vscode.env.clipboard.writeText(
         `${quoteFor(profile, o.schema)}.${quoteFor(profile, o.name)}`,
@@ -387,9 +424,14 @@ export function activate(context: vscode.ExtensionContext): void {
       return;
     }
     const profile = await pickProfile('Select a connection for this editor');
-    if (profile) {
-      binding.bind(editor.document, profile.id);
+    if (!profile) {
+      return;
     }
+    const database = await resolveDbContext(profile);
+    if (!database) {
+      return;
+    }
+    binding.bind(editor.document, profile.id, database);
   });
 
   register('databaseHub.pickActiveConnection', async () => {
@@ -400,7 +442,11 @@ export function activate(context: vscode.ExtensionContext): void {
     await ensureConnected(profile);
     const editor = vscode.window.activeTextEditor;
     if (editor && editor.document.languageId === 'sql') {
-      binding.bind(editor.document, profile.id);
+      const database = await resolveDbContext(profile);
+      if (!database) {
+        return;
+      }
+      binding.bind(editor.document, profile.id, database);
     } else {
       mgr.setActive(profile.id);
     }
@@ -410,7 +456,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   register('databaseHub.history.open', async (entry?: HistoryEntry) => {
     if (entry) {
-      await openSqlEditor(entry.sql, store.get(entry.connectionId));
+      await openSqlEditor(entry.sql, store.get(entry.connectionId), entry.database || undefined);
     }
   });
 
@@ -423,8 +469,8 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.window.showWarningMessage('Database Hub: that connection no longer exists.');
       return;
     }
-    await ensureConnected(profile);
-    await executor.runSql(profile, entry.sql);
+    await ensureConnected(profile, entry.database || undefined);
+    await executor.runSql(profile, entry.sql, entry.database || undefined);
   });
 
   register('databaseHub.history.copy', async (entry?: HistoryEntry) => {
@@ -442,6 +488,7 @@ export function activate(context: vscode.ExtensionContext): void {
       label: entry.sql.replace(/\s+/g, ' ').trim().slice(0, 60),
       connectionId: entry.connectionId,
       connectionName: entry.connectionName,
+      database: entry.database || undefined,
       sql: entry.sql,
     });
   });
@@ -487,25 +534,25 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const profile = entry.connectionId ? store.get(entry.connectionId) : undefined;
     if (entry.kind === 'query') {
-      await openSqlEditor(entry.sql ?? '', profile);
+      await openSqlEditor(entry.sql ?? '', profile, entry.database);
       return;
     }
     if (!profile || !entry.schema || !entry.name) {
       vscode.window.showWarningMessage('Database Hub: that connection no longer exists.');
       return;
     }
-    const driver = await ensureConnected(profile);
+    const driver = await ensureConnected(profile, entry.database);
     if (entry.objectType === 'table' || entry.objectType === 'view') {
       const sql = driver.buildSelectTop(entry.schema, entry.name, 1000);
-      await openSqlEditor(sql, profile);
-      await executor.runSql(profile, sql);
+      await openSqlEditor(sql, profile, entry.database);
+      await executor.runSql(profile, sql, entry.database);
     } else {
       const definition = await driver.getDefinition({
         type: entry.objectType ?? 'procedure',
         schema: entry.schema,
         name: entry.name,
       });
-      await openSqlEditor(definition, profile);
+      await openSqlEditor(definition, profile, entry.database);
     }
   });
 
