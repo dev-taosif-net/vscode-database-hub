@@ -29,6 +29,19 @@
     $('domain-row').classList.toggle('hidden', !ntlm);
   }
 
+  function connectMode() {
+    return $('use-connstring').checked ? 'connectionString' : 'fields';
+  }
+
+  function refreshConnectMode() {
+    const useString = connectMode() === 'connectionString';
+    $('fields-mode').classList.toggle('hidden', useString);
+    $('connstring-mode').classList.toggle('hidden', !useString);
+    if (useString) {
+      $('connString').focus();
+    }
+  }
+
   function refreshEnvDot() {
     $('env-dot').style.background = ENV_HEX[$('environment').value] || '#888';
   }
@@ -46,7 +59,9 @@
   }
 
   function collect() {
-    const required = ['name', 'host', 'user'];
+    const mode = connectMode();
+    const required = mode === 'connectionString' ? ['name', 'connString'] : ['name', 'host', 'user'];
+    ['name', 'host', 'user', 'connString'].forEach((id) => $(id).classList.remove('invalid'));
     let firstBad = null;
     required.forEach((id) => {
       const el = $(id);
@@ -60,15 +75,19 @@
       return null;
     }
     const portVal = $('port').value.trim();
-    const portBad = portVal !== '' && (!/^\d+$/.test(portVal) || Number(portVal) < 1 || Number(portVal) > 65535);
-    $('port').classList.toggle('invalid', portBad);
-    if (portBad) {
-      setStatus('err', 'Port must be a number between 1 and 65535, or blank for the default.');
-      $('port').focus();
-      return null;
+    if (mode === 'fields') {
+      const portBad = portVal !== '' && (!/^\d+$/.test(portVal) || Number(portVal) < 1 || Number(portVal) > 65535);
+      $('port').classList.toggle('invalid', portBad);
+      if (portBad) {
+        setStatus('err', 'Port must be a number between 1 and 65535, or blank for the default.');
+        $('port').focus();
+        return null;
+      }
     }
     return {
       name: $('name').value.trim(),
+      connectUsing: mode,
+      connectionString: $('connString').value.trim(),
       type: $('type').value,
       environment: $('environment').value,
       host: $('host').value.trim(),
@@ -88,40 +107,8 @@
   $('type').addEventListener('change', refreshTypeSections);
   $('authType').addEventListener('change', refreshDomainRow);
   $('environment').addEventListener('change', refreshEnvDot);
-
-  function requestParse() {
-    const value = $('connString').value.trim();
-    if (!value) {
-      setStatus('err', 'Paste a connection string first.');
-      return;
-    }
-    vscode.postMessage({ type: 'parse', value });
-  }
-  $('parse').addEventListener('click', requestParse);
-  $('connString').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') requestParse();
-  });
-
-  function applyParsed(fields) {
-    if (fields.type) $('type').value = fields.type;
-    if (fields.host) $('host').value = fields.host;
-    // No port in the string means "use the default" — clear any leftover.
-    $('port').value = fields.port || '';
-    if (fields.database !== undefined) $('database').value = fields.database || '';
-    if (fields.user) $('user').value = fields.user;
-    if (fields.password) $('password').value = fields.password;
-    if (fields.authType) $('authType').value = fields.authType;
-    if (fields.domain) $('domain').value = fields.domain;
-    if (fields.encrypt !== undefined) $('encrypt').checked = fields.encrypt;
-    if (fields.trustServerCertificate !== undefined) $('trustCert').checked = fields.trustServerCertificate;
-    if (fields.ssl !== undefined) $('ssl').checked = fields.ssl;
-    if (!$('name').value.trim()) {
-      $('name').value = fields.database ? `${fields.database}@${fields.host || ''}` : fields.host || '';
-    }
-    refreshTypeSections();
-    refreshEnvDot();
-    setStatus('ok', '✓ Connection string parsed — review the fields and save.');
-  }
+  $('use-fields').addEventListener('change', refreshConnectMode);
+  $('use-connstring').addEventListener('change', refreshConnectMode);
 
   $('test').addEventListener('click', () => {
     const data = collect();
@@ -150,7 +137,11 @@
       $('subtitle').textContent = isEdit
         ? p.name
         : 'Microsoft SQL Server · PostgreSQL';
+      $('use-fields').checked = true;
+      $('use-connstring').checked = false;
       $('connString').value = '';
+      $('connString').classList.remove('invalid');
+      refreshConnectMode();
       $('name').value = p.name || '';
       $('type').value = p.type || 'mssql';
       $('environment').value = p.environment || 'DEV';
@@ -176,9 +167,6 @@
     } else if (msg.type === 'testResult') {
       setBusy(false);
       setStatus(msg.ok ? 'ok' : 'err', msg.message);
-    } else if (msg.type === 'parsed') {
-      setBusy(false);
-      applyParsed(msg.fields || {});
     }
   });
 
