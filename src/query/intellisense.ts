@@ -82,18 +82,22 @@ function currentStatement(document: vscode.TextDocument, position: vscode.Positi
   return text.slice(start, end);
 }
 
-/** Short alias for a table name: initials of its words (`order_details` → `od`,
- *  `OrderDetails` → `od`), skipping SQL keywords and names already in use. */
+/** Short alias for a table name: its capital letters when it has both cases
+ *  (`empEmployeeBasicInfoDetails` → `ebid`), otherwise initials of its words
+ *  (`order_details` → `od`), skipping SQL keywords and names already in use.
+ *  Taken names get an incremental number (`ebid2`). */
 function suggestAlias(name: string, taken: ReadonlySet<string>): string {
-  const parts = name
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .split(/[\s_-]+/)
-    .filter(Boolean);
-  let base = parts
-    .map((p) => p[0])
-    .join('')
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+  const caps = name.match(/[A-Z]/g);
+  let base =
+    caps && /[a-z]/.test(name)
+      ? caps.join('').toLowerCase()
+      : name
+          .split(/[\s_-]+/)
+          .filter(Boolean)
+          .map((p) => p[0])
+          .join('')
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
   if (!base || /^\d/.test(base)) {
     base = 't';
   }
@@ -119,6 +123,10 @@ const FROM_TAIL_RE = new RegExp(
   String.raw`\b(?:from|join)\s+(?:${IDENT}\s*\.\s*)?[\w$"\[\]]*$`,
   'i',
 );
+
+/** True when the cursor sits right after `USE` (optionally mid-way through a
+ *  database name) — the spot where database names should be suggested. */
+const USE_TAIL_RE = /\buse\s+(?:\[[^\]]*|"[^"]*|[\w$@#.]*)$/i;
 
 function inTableClause(beforeCursor: string): boolean {
   const m = FROM_TAIL_RE.exec(beforeCursor);
@@ -150,6 +158,9 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     const withAlias =
       config.get<boolean>('editor.autoInsertAlias', true) && inTableClause(beforeCursor);
     const linePrefix = document.lineAt(position).text.slice(0, position.character);
+    if (USE_TAIL_RE.test(linePrefix)) {
+      return this.databaseCompletions(document);
+    }
     const member = linePrefix.match(
       new RegExp(String.raw`(${IDENT})\.[\w$]*$`),
     );
@@ -249,6 +260,35 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
       }
     }
     return items;
+  }
+
+  /** Database names on the bound server, for `USE <db>`. */
+  private async databaseCompletions(
+    document: vscode.TextDocument,
+  ): Promise<vscode.CompletionItem[]> {
+    const ctx = this.resolveContext(document);
+    if (!ctx?.driver) {
+      return [];
+    }
+    try {
+      const databases = await this.cache.listDatabases(ctx.profile.id, ctx.driver);
+      return databases.map((name) => {
+        const item = new vscode.CompletionItem(
+          {
+            label: name,
+            description: name === ctx.database ? 'current' : undefined,
+          },
+          vscode.CompletionItemKind.Module,
+        );
+        item.detail = 'database';
+        item.insertText = this.quoteIfNeeded(ctx, name);
+        item.filterText = name;
+        item.sortText = `0_${name}`;
+        return item;
+      });
+    } catch {
+      return [];
+    }
   }
 
   private objectItem(
