@@ -84,8 +84,6 @@ export interface ParameterInfo {
 export interface ResultSet {
   columns: string[];
   rows: unknown[][];
-  /** True when the fetch was cut off at maxRows */
-  truncated: boolean;
 }
 
 export interface QueryRunResult {

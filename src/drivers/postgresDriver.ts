@@ -8,7 +8,7 @@ import {
   QueryRunResult,
   ResultSet,
 } from '../types';
-import { ConnectOptions, Driver, QueryCancelledError, QueryOptions } from './driver';
+import { ConnectOptions, Driver, QueryCancelledError } from './driver';
 
 interface PgResultLike {
   fields?: { name: string }[];
@@ -74,7 +74,7 @@ export class PostgresDriver implements Driver {
     return this.pool;
   }
 
-  async execute(text: string, opts: QueryOptions): Promise<QueryRunResult> {
+  async execute(text: string): Promise<QueryRunResult> {
     const started = Date.now();
     const messages: string[] = [];
     this.userCancelled = false;
@@ -97,17 +97,10 @@ export class PostgresDriver implements Driver {
       const resultSets: ResultSet[] = [];
       for (const r of results) {
         if (r.fields && r.fields.length > 0) {
-          const truncated = r.rows.length > opts.maxRows;
           resultSets.push({
             columns: r.fields.map((f, i) => f.name || `(column ${i + 1})`),
-            rows: truncated ? r.rows.slice(0, opts.maxRows) : r.rows,
-            truncated,
+            rows: r.rows,
           });
-          if (truncated) {
-            messages.push(
-              `Result truncated at ${opts.maxRows} rows (databaseHub.query.maxRows).`,
-            );
-          }
         } else if (r.command) {
           const n = r.rowCount ?? 0;
           messages.push(`${r.command} — ${n} row${n === 1 ? '' : 's'} affected`);

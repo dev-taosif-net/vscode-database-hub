@@ -8,7 +8,7 @@ import {
   QueryRunResult,
   ResultSet,
 } from '../types';
-import { ConnectOptions, Driver, QueryCancelledError, QueryOptions } from './driver';
+import { ConnectOptions, Driver, QueryCancelledError } from './driver';
 
 /** Split a script into batches on lines containing only GO */
 function splitBatches(text: string): string[] {
@@ -93,7 +93,7 @@ export class MssqlDriver implements Driver {
     return this.pool;
   }
 
-  async execute(text: string, opts: QueryOptions): Promise<QueryRunResult> {
+  async execute(text: string): Promise<QueryRunResult> {
     const started = Date.now();
     const resultSets: ResultSet[] = [];
     const messages: string[] = [];
@@ -103,7 +103,7 @@ export class MssqlDriver implements Driver {
       if (this.userCancelled) {
         break;
       }
-      await this.runBatchStreaming(batch, opts, resultSets, messages);
+      await this.runBatchStreaming(batch, resultSets, messages);
     }
     if (this.userCancelled) {
       throw new QueryCancelledError();
@@ -111,13 +111,9 @@ export class MssqlDriver implements Driver {
     return { resultSets, messages, durationMs: Date.now() - started };
   }
 
-  /**
-   * Stream rows so a runaway SELECT is stopped at maxRows instead of
-   * buffering millions of rows in the extension host.
-   */
+  /** Stream rows so multiple result sets and messages arrive incrementally. */
   private runBatchStreaming(
     batch: string,
-    opts: QueryOptions,
     resultSets: ResultSet[],
     messages: string[],
   ): Promise<void> {
@@ -128,28 +124,18 @@ export class MssqlDriver implements Driver {
       this.currentRequest = request;
 
       let current: ResultSet | undefined;
-      let cappedCancel = false;
 
       request.on('recordset', (columns: unknown) => {
-        current = { columns: columnNames({ columns }), rows: [], truncated: false };
+        current = { columns: columnNames({ columns }), rows: [] };
         resultSets.push(current);
       });
 
       request.on('row', (row: unknown[]) => {
         if (!current) {
-          current = { columns: [], rows: [], truncated: false };
+          current = { columns: [], rows: [] };
           resultSets.push(current);
         }
-        if (current.rows.length < opts.maxRows) {
-          current.rows.push(row);
-        } else if (!current.truncated) {
-          current.truncated = true;
-          cappedCancel = true;
-          messages.push(
-            `Result truncated at ${opts.maxRows} rows (databaseHub.query.maxRows) — execution stopped.`,
-          );
-          request.cancel();
-        }
+        current.rows.push(row);
       });
 
       request.on('info', (info: { message?: string }) => {
@@ -164,9 +150,7 @@ export class MssqlDriver implements Driver {
 
       request.on('error', (err: Error & { code?: string }) => {
         this.currentRequest = undefined;
-        if (cappedCancel && err.code === 'ECANCEL') {
-          resolve();
-        } else if (this.userCancelled && err.code === 'ECANCEL') {
+        if (this.userCancelled && err.code === 'ECANCEL') {
           resolve(); // execute() converts to QueryCancelledError
         } else {
           reject(err);

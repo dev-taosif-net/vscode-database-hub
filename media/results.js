@@ -1,5 +1,5 @@
 // Database Hub results grid — vanilla JS, renders one page at a time so
-// even maxRows-sized result sets stay instant.
+// even very large result sets stay instant.
 (function () {
   'use strict';
 
@@ -120,10 +120,6 @@
       `<button id="export-csv">Export CSV</button>` +
       `<button id="export-excel">Export Excel</button>` +
       '</div>';
-
-    if (rs.truncated) {
-      html += `<div class="truncated-note">⚠ Result truncated at ${rs.rows.length.toLocaleString()} rows — increase databaseHub.query.maxRows if needed.</div>`;
-    }
 
     html += '<div class="grid-wrap"><table><thead><tr><th class="rownum">#</th>';
     rs.columns.forEach((col, c) => {

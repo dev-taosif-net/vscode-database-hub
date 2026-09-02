@@ -224,8 +224,3 @@ td.cell-active {
   }
 }
 
-.truncated-note {
-  padding: 4px 12px;
-  font-size: 12px;
-  color: var(--vscode-editorWarning-foreground, #e8830c);
-}

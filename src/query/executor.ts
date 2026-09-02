@@ -148,10 +148,6 @@ export class Executor {
       panel.showError(this.buildMeta(profile, db), message);
       throw err;
     }
-    const maxRows = vscode.workspace
-      .getConfiguration('databaseHub')
-      .get<number>('query.maxRows', 5000);
-
     this.runningDriver = driver;
     await vscode.commands.executeCommand('setContext', 'databaseHub.queryRunning', true);
     const startedAt = new Date().toISOString();
@@ -166,7 +162,7 @@ export class Executor {
         },
         async (_progress, token): Promise<QueryRunResult> => {
           token.onCancellationRequested(() => void driver.cancelRunning());
-          return driver.execute(sql, { maxRows });
+          return driver.execute(sql);
         },
       );
 

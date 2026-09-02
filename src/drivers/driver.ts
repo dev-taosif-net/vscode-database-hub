@@ -7,11 +7,6 @@ import {
   QueryRunResult,
 } from '../types';
 
-export interface QueryOptions {
-  /** Rows kept per result set; extra rows are dropped/stopped */
-  maxRows: number;
-}
-
 export interface ConnectOptions {
   /** Request timeout applied to queries, ms. 0 = unlimited */
   requestTimeoutMs: number;
@@ -33,7 +28,7 @@ export interface Driver {
   /** All accessible databases on the server */
   listDatabases(): Promise<string[]>;
 
-  execute(sql: string, opts: QueryOptions): Promise<QueryRunResult>;
+  execute(sql: string): Promise<QueryRunResult>;
   /** Cancel the currently running execute(), if any */
   cancelRunning(): Promise<void>;
 

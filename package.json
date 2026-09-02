@@ -563,12 +563,6 @@
           "minimum": 0,
           "description": "Query execution timeout in seconds (0 = no timeout). Applied when a connection is opened."
         },
-        "databaseHub.query.maxRows": {
-          "type": "number",
-          "default": 5000,
-          "minimum": 100,
-          "description": "Maximum rows fetched per result set. Larger results are truncated to keep the UI fast."
-        },
         "databaseHub.editor.suggestions": {
           "type": "boolean",
           "default": true,

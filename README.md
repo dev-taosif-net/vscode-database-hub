@@ -41,7 +41,7 @@ Safety features:
 - `Ctrl+Enter` — execute selection (or whole file when nothing is selected); `Ctrl+Shift+Enter` — execute all.
 - Async with cancel (toolbar stop button or the progress notification). SQL Server `GO` batch separators are supported.
 - Per-editor connection binding: each SQL editor remembers which connection it talks to (plug icon in the editor title).
-- Execution timeout (`databaseHub.query.timeoutSeconds`) and row cap (`databaseHub.query.maxRows`). SQL Server results are **streamed** and execution stops at the cap, so a runaway `SELECT *` can never freeze VS Code.
+- Execution timeout (`databaseHub.query.timeoutSeconds`). Full result sets are fetched; the grid pages them (`databaseHub.grid.pageSize`) so the UI stays responsive.
 
 ### Results grid
 - Environment color band with connection · server / database · row count · duration.
@@ -73,7 +73,6 @@ Press **F5** ("Run Extension") to launch the Extension Development Host, open th
 | Setting | Default | Description |
 |---|---|---|
 | `databaseHub.query.timeoutSeconds` | `120` | Query timeout (0 = none), applied at connect time |
-| `databaseHub.query.maxRows` | `5000` | Row cap per result set |
 | `databaseHub.grid.pageSize` | `1000` | Rows per page in the grid |
 | `databaseHub.history.maxEntries` | `200` | History size |
 | `databaseHub.safety.warnDangerousQueries` | `true` | Warn on dangerous statements |
