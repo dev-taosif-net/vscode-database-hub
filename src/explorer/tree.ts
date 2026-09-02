@@ -32,7 +32,7 @@ export interface HubNode {
   param?: import('../types').ParameterInfo;
 }
 
-const OBJECT_ICON: Record<ObjectType, string> = {
+export const OBJECT_ICON: Record<ObjectType, string> = {
   table: 'table',
   view: 'window',
   procedure: 'gear',
@@ -94,7 +94,7 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
         );
         item.id = `${node.connectionId}|${node.database}|folder|${node.objectType}|${node.schema ?? ''}`;
         item.iconPath = new vscode.ThemeIcon('folder');
-        item.contextValue = 'folder';
+        item.contextValue = `folder-${node.objectType}`;
         return item;
       }
       case 'schema': {

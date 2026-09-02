@@ -74,7 +74,7 @@ Press **F5** ("Run Extension") to launch the Extension Development Host, open th
 |---|---|---|
 | `databaseHub.query.timeoutSeconds` | `120` | Query timeout (0 = none), applied at connect time |
 | `databaseHub.query.maxRows` | `5000` | Row cap per result set |
-| `databaseHub.grid.pageSize` | `200` | Rows per page in the grid |
+| `databaseHub.grid.pageSize` | `1000` | Rows per page in the grid |
 | `databaseHub.history.maxEntries` | `200` | History size |
 | `databaseHub.safety.warnDangerousQueries` | `true` | Warn on dangerous statements |
 | `databaseHub.safety.requireProdConfirmation` | `true` | Confirm writes on PROD |

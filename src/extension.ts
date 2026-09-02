@@ -5,7 +5,7 @@ import { ConnectionStore } from './connections/store';
 import { MssqlDriver } from './drivers/mssqlDriver';
 import { PostgresDriver } from './drivers/postgresDriver';
 import { MetadataCache } from './explorer/cache';
-import { HubNode, ObjectExplorer } from './explorer/tree';
+import { HubNode, OBJECT_ICON, ObjectExplorer } from './explorer/tree';
 import { FavoritesStore } from './favorites/store';
 import { FavoritesView } from './favorites/view';
 import { HistoryStore } from './history/store';
@@ -17,11 +17,13 @@ import { analyzeUse } from './query/useStatement';
 import { ResultsViewProvider } from './results/panel';
 import { SnippetsView } from './snippets/view';
 import { StatusBar } from './statusBar';
+import { Driver } from './drivers/driver';
 import {
   ConnectionProfile,
   DbObject,
   FavoriteEntry,
   HistoryEntry,
+  OBJECT_TYPE_LABEL,
   ObjectType,
   SnippetDef,
 } from './types';
@@ -146,6 +148,28 @@ export function activate(context: vscode.ExtensionContext): void {
     return profile.type === 'mssql'
       ? `[${name.replace(/]/g, ']]')}]`
       : `"${name.replace(/"/g, '""')}"`;
+  }
+
+  /** Open a searched/picked object: data preview, definition, or copied name. */
+  async function openPickedObject(
+    profile: ConnectionProfile,
+    database: string,
+    driver: Driver,
+    o: DbObject,
+  ): Promise<void> {
+    if (o.type === 'table' || o.type === 'view') {
+      const sql = driver.buildSelectTop(o.schema, o.name, 1000);
+      await openSqlEditor(sql, profile, database);
+      await executor.runSql(profile, sql, database);
+    } else if (o.type === 'procedure' || o.type === 'function') {
+      const definition = await driver.getDefinition(o);
+      await openSqlEditor(definition, profile, database);
+    } else {
+      await vscode.env.clipboard.writeText(
+        `${quoteFor(profile, o.schema)}.${quoteFor(profile, o.name)}`,
+      );
+      vscode.window.showInformationMessage(`Database Hub: copied ${o.schema}.${o.name}`);
+    }
   }
 
   /**
@@ -467,19 +491,11 @@ export function activate(context: vscode.ExtensionContext): void {
     }
     const driver = await ensureConnected(profile, database);
     const types: ObjectType[] = ['table', 'view', 'procedure', 'function', 'trigger', 'sequence'];
-    const icon: Record<ObjectType, string> = {
-      table: 'table',
-      view: 'window',
-      procedure: 'gear',
-      function: 'symbol-function',
-      trigger: 'zap',
-      sequence: 'list-ordered',
-    };
     const lists = await Promise.all(
       types.map((t) => cache.listObjects(profile.id, database, driver, t)),
     );
     const items = lists.flat().map((o) => ({
-      label: `$(${icon[o.type]}) ${o.schema}.${o.name}`,
+      label: `$(${OBJECT_ICON[o.type]}) ${o.schema}.${o.name}`,
       description: o.type + (o.detail ? ` · ${o.detail}` : ''),
       obj: o,
     }));
@@ -487,22 +503,38 @@ export function activate(context: vscode.ExtensionContext): void {
       placeHolder: `Search ${items.length.toLocaleString()} objects in ${profile.name}/${database}…`,
       matchOnDescription: true,
     });
-    if (!picked) {
+    if (picked) {
+      await openPickedObject(profile, database, driver, picked.obj);
+    }
+  });
+
+  register('databaseHub.searchFolder', async (node?: HubNode) => {
+    if (!node?.objectType || !node.database) {
       return;
     }
-    const o: DbObject = picked.obj;
-    if (o.type === 'table' || o.type === 'view') {
-      const sql = driver.buildSelectTop(o.schema, o.name, 1000);
-      await openSqlEditor(sql, profile, database);
-      await executor.runSql(profile, sql, database);
-    } else if (o.type === 'procedure' || o.type === 'function') {
-      const definition = await driver.getDefinition(o);
-      await openSqlEditor(definition, profile, database);
-    } else {
-      await vscode.env.clipboard.writeText(
-        `${quoteFor(profile, o.schema)}.${quoteFor(profile, o.name)}`,
-      );
-      vscode.window.showInformationMessage(`Database Hub: copied ${o.schema}.${o.name}`);
+    const profile = store.get(node.connectionId);
+    if (!profile) {
+      return;
+    }
+    const database = node.database;
+    const driver = await ensureConnected(profile, database);
+    const objects = await cache.listObjects(profile.id, database, driver, node.objectType);
+    const scoped = node.schema ? objects.filter((o) => o.schema === node.schema) : objects;
+    const items = scoped.map((o) => ({
+      label: `$(${OBJECT_ICON[o.type]}) ${o.schema}.${o.name}`,
+      description: o.detail,
+      obj: o,
+    }));
+    const scope =
+      `${profile.name}/${database}` + (node.schema ? ` (${node.schema})` : '');
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: `Search ${scoped.length.toLocaleString()} ${OBJECT_TYPE_LABEL[
+        node.objectType
+      ].toLowerCase()} in ${scope}…`,
+      matchOnDescription: true,
+    });
+    if (picked) {
+      await openPickedObject(profile, database, driver, picked.obj);
     }
   });
 

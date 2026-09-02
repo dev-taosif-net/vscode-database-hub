@@ -154,6 +154,18 @@ th.rownum {
   background: var(--vscode-editorWidget-background);
 }
 
+/* Placed before tr.selected so row selection still wins on NULL cells. */
+td.null {
+  color: #9e7c00;
+  background: rgba(255, 214, 0, 0.18);
+  font-style: italic;
+}
+
+body.vscode-dark td.null,
+body.vscode-high-contrast td.null {
+  color: #ffd866;
+}
+
 tr.selected td {
   background: var(--vscode-list-activeSelectionBackground);
   color: var(--vscode-list-activeSelectionForeground);
@@ -162,11 +174,6 @@ tr.selected td {
 td.cell-active {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
-}
-
-td.null {
-  color: var(--vscode-descriptionForeground);
-  font-style: italic;
 }
 
 .pager {

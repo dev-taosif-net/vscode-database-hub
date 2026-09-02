@@ -106,7 +106,7 @@
 
     const view = views[activeSet];
     const idx = filteredSortedIndexes(rs, view);
-    const pageSize = data.pageSize || 200;
+    const pageSize = data.pageSize || 1000;
     const pages = Math.max(1, Math.ceil(idx.length / pageSize));
     if (view.page >= pages) view.page = pages - 1;
     const pageIdx = idx.slice(view.page * pageSize, (view.page + 1) * pageSize);

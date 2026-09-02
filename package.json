@@ -158,6 +158,12 @@
         "icon": "$(search)"
       },
       {
+        "command": "databaseHub.searchFolder",
+        "title": "Search Tables",
+        "category": "Database Hub",
+        "icon": "$(search)"
+      },
+      {
         "command": "databaseHub.selectTop1000",
         "title": "SELECT Top 1000 Rows",
         "category": "Database Hub",
@@ -273,6 +279,10 @@
       "commandPalette": [
         {
           "command": "databaseHub.refreshNode",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.searchFolder",
           "when": "false"
         },
         {
@@ -420,8 +430,18 @@
           "group": "1_connection@1"
         },
         {
+          "command": "databaseHub.searchFolder",
+          "when": "view == databaseHubConnections && viewItem == folder-table",
+          "group": "inline@1"
+        },
+        {
+          "command": "databaseHub.searchFolder",
+          "when": "view == databaseHubConnections && viewItem == folder-table",
+          "group": "1_query@1"
+        },
+        {
           "command": "databaseHub.refreshNode",
-          "when": "view == databaseHubConnections && viewItem =~ /^(connection-on|folder|schema|database)$/",
+          "when": "view == databaseHubConnections && viewItem =~ /^(connection-on|folder-\\w+|schema|database)$/",
           "group": "2_refresh@1"
         },
         {
@@ -562,11 +582,11 @@
         "databaseHub.editor.autoInsertAlias": {
           "type": "boolean",
           "default": true,
-          "description": "When completing a table or view name in a FROM/JOIN clause, also insert a short alias derived from the name (e.g. 'order_details od'). The alias is selected after insertion so it can be typed over; press Tab or Escape to keep it."
+          "description": "When completing a table or view name in a FROM/JOIN clause, also insert a short alias derived from the name (e.g. 'order_details od')."
         },
         "databaseHub.grid.pageSize": {
           "type": "number",
-          "default": 200,
+          "default": 1000,
           "minimum": 50,
           "description": "Rows per page in the results grid."
         },

@@ -63,7 +63,7 @@ export class ResultsViewProvider implements vscode.WebviewViewProvider {
     this.lastResultSets = result.resultSets;
     const pageSize = vscode.workspace
       .getConfiguration('databaseHub')
-      .get<number>('grid.pageSize', 200);
+      .get<number>('grid.pageSize', 1000);
     this.post({
       type: 'results',
       meta,

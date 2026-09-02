@@ -112,10 +112,6 @@ function suggestAlias(name: string, taken: ReadonlySet<string>): string {
   }
 }
 
-function snippetEscape(s: string): string {
-  return s.replace(/[\\$}]/g, '\\$&');
-}
-
 /** True when the cursor sits right after FROM/JOIN (optionally mid-way through
  *  a table name) — the spot where a completed table should get an alias.
  *  `DELETE FROM` is excluded: an inline alias there is not portable T-SQL. */
@@ -309,10 +305,10 @@ export class SqlCompletionProvider implements vscode.CompletionItemProvider {
     if (obj.type === 'function') {
       item.insertText = new vscode.SnippetString(`${text}($0)`);
     } else if (aliasTaken && (obj.type === 'table' || obj.type === 'view')) {
-      const alias = suggestAlias(obj.name, aliasTaken);
-      item.insertText = new vscode.SnippetString(
-        `${snippetEscape(text)} \${1:${alias}} `,
-      );
+      // Plain text, not a snippet placeholder: the alias must stay in place
+      // whatever the user types next (a selected placeholder would be
+      // overwritten by the next keystroke).
+      item.insertText = `${text} ${suggestAlias(obj.name, aliasTaken)} `;
     } else {
       item.insertText = `${text} `;
     }
