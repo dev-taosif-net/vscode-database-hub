@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const cache = new MetadataCache();
   const historyStore = new HistoryStore(context);
   const favoritesStore = new FavoritesStore(context);
-  const binding = new EditorBinding(store, manager);
+  const binding = new EditorBinding(store, manager, context.workspaceState);
   const resultsView = new ResultsViewProvider(context.extensionUri);
   const executor = new Executor(manager, historyStore, resultsView);
   const explorer = new ObjectExplorer(store, manager, cache);
@@ -285,6 +285,10 @@ export function activate(context: vscode.ExtensionContext): void {
     if (use.database && profile.type === 'mssql') {
       const target = await resolveServerDatabase(profile, use.database, database);
       if (target && target !== database) {
+        // The USE left a pooled session of the old database's pool parked in
+        // the new database — drop that pool so no later query lands wrong.
+        await mgr.reset(profile.id, database ?? defaultDatabase(profile));
+        await ensureConnected(profile, target);
         await switchEditorDatabase(editor, profile, target);
       }
     }

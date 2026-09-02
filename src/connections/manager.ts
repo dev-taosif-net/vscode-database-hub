@@ -112,6 +112,22 @@ export class ConnectionManager {
     return driver;
   }
 
+  /**
+   * Close one profile+database pool. Used after a script ran a USE on it:
+   * that leaves a pooled session parked in a different database, and any
+   * later query handed that session would silently run in the wrong place.
+   */
+  async reset(profileId: string, database: string): Promise<void> {
+    const key = this.key(profileId, database);
+    const driver = this.drivers.get(key);
+    if (!driver) {
+      return;
+    }
+    this.drivers.delete(key);
+    this._onDidChange.fire();
+    await driver.disconnect().catch(() => undefined);
+  }
+
   /** Close every pool belonging to this profile */
   async disconnect(profileId: string): Promise<void> {
     const prefix = `${profileId}::`;
