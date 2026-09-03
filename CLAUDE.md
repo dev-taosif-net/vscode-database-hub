@@ -49,6 +49,7 @@ Verified 2026-09-03 on Node 24 / npm 11: typecheck and build pass. esbuild's
 | `src/drivers/mssqlDriver.ts` | `mssql`/tedious: GO batches, streamed rows, `sys.*` catalog queries |
 | `src/drivers/postgresDriver.ts` | `pg`: one simple query per run, `pg_catalog` queries, cancel via `pg_cancel_backend` |
 | `src/explorer/cache.ts` | `MetadataCache`: TTL + stale-while-revalidate, keyed by connection/database/kind |
+| `src/explorer/filters.ts` | `FolderFilterStore`: persistent Tables / Views / Procedures folder filters (comma-separated terms, `*` wildcard), applied client-side after the cache |
 | `src/explorer/tree.ts` | `ObjectExplorer` tree provider, `HubNode`, `OBJECT_ICON`, `FOLDER_ORDER` |
 | `src/query/executor.ts` | `Executor.runSql()`: safety → connect → run → grid → history; `sanitizeValue()` |
 | `src/query/editorBinding.ts` | `EditorBinding`: document URI → `{connectionId, database}`, persisted in `workspaceState` |
@@ -76,8 +77,8 @@ Verified 2026-09-03 on Node 24 / npm 11: typecheck and build pass. esbuild's
 - Passwords live only in `SecretStorage` under `databaseHub.password.<profileId>`. A connect error
   matching `/password|login|auth/i` deletes the stored password so the next attempt re-prompts.
   Never write, log or echo passwords anywhere else.
-- Persisted keys: `databaseHub.connections`, `databaseHub.history`, `databaseHub.favorites`
-  (globalState); `databaseHub.editorBindings` (workspaceState).
+- Persisted keys: `databaseHub.connections`, `databaseHub.history`, `databaseHub.favorites`,
+  `databaseHub.folderFilters` (globalState); `databaseHub.editorBindings` (workspaceState).
 
 **Editor binding**
 - Each SQL document URI maps to `{connectionId, database}`; unbound editors fall back to
@@ -118,6 +119,9 @@ Verified 2026-09-03 on Node 24 / npm 11: typecheck and build pass. esbuild's
 - Stale entries are returned immediately and refreshed in the background; `onDidRefresh` refreshes
   the tree. A failed refresh keeps the old data. Invalidate per connection on disconnect / delete /
   save / "Refresh" node; `invalidateAll` on "Refresh Explorer".
+- Folder filters (`FolderFilterStore`, one per connection + database + object type) are applied in
+  `getChildren` *after* the cache and never touch it, so Search, global object search and
+  IntelliSense keep seeing every object. An empty match set renders one `message` node.
 
 **Safety analysis** (`safety.ts`) is lexical, not a parser: strip comments and string literals, split
 on `;` or `GO` lines, then flag statement heads (`DELETE`/`UPDATE` without `WHERE`, `TRUNCATE`,
@@ -148,7 +152,8 @@ design ("errs on the side of warning"). Read-only mode blocks `EXEC`/`CALL` enti
 
 **UI wiring**
 - Tree `contextValue`s drive every context menu: `connection-on|off`, `database`, `folder-<type>`,
-  `schema`, `object-<type>`, `column`, `parameter` (Connections); `history`; `favorite`; `snippet`.
+  `folder-<type>-filtered`, `schema`, `object-<type>`, `column`, `parameter`, `message` (Connections);
+  `history`; `favorite`; `snippet`. Menu regexes on folders must accept the `-filtered` suffix.
 - Keybindings: `Ctrl+Enter` = execute selection-or-all, `Ctrl+Shift+Enter` = execute all, only when
   `editorTextFocus && editorLangId == sql`.
 - Environment colors come from `ENV_META`; PROD uses `statusBarItem.errorBackground`, UAT

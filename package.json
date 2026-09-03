@@ -164,6 +164,18 @@
         "icon": "$(search)"
       },
       {
+        "command": "databaseHub.filterFolder",
+        "title": "Filter…",
+        "category": "Database Hub",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "databaseHub.clearFolderFilter",
+        "title": "Clear Filter",
+        "category": "Database Hub",
+        "icon": "$(close)"
+      },
+      {
         "command": "databaseHub.selectTop1000",
         "title": "SELECT Top 1000 Rows",
         "category": "Database Hub",
@@ -283,6 +295,14 @@
         },
         {
           "command": "databaseHub.searchFolder",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.filterFolder",
+          "when": "false"
+        },
+        {
+          "command": "databaseHub.clearFolderFilter",
           "when": "false"
         },
         {
@@ -431,17 +451,37 @@
         },
         {
           "command": "databaseHub.searchFolder",
-          "when": "view == databaseHubConnections && viewItem == folder-table",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-table(-filtered)?$/",
           "group": "inline@1"
         },
         {
           "command": "databaseHub.searchFolder",
-          "when": "view == databaseHubConnections && viewItem == folder-table",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-table(-filtered)?$/",
           "group": "1_query@1"
         },
         {
+          "command": "databaseHub.filterFolder",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-(table|view|procedure)(-filtered)?$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "databaseHub.filterFolder",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-(table|view|procedure)(-filtered)?$/",
+          "group": "1_query@2"
+        },
+        {
+          "command": "databaseHub.clearFolderFilter",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-(table|view|procedure)-filtered$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "databaseHub.clearFolderFilter",
+          "when": "view == databaseHubConnections && viewItem =~ /^folder-(table|view|procedure)-filtered$/",
+          "group": "1_query@3"
+        },
+        {
           "command": "databaseHub.refreshNode",
-          "when": "view == databaseHubConnections && viewItem =~ /^(connection-on|folder-\\w+|schema|database)$/",
+          "when": "view == databaseHubConnections && viewItem =~ /^(connection-on|folder-[\\w-]+|schema|database)$/",
           "group": "2_refresh@1"
         },
         {

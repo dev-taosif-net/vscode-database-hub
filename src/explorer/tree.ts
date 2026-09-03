@@ -10,6 +10,7 @@ import {
   ObjectType,
 } from '../types';
 import { MetadataCache } from './cache';
+import { FolderFilterStore } from './filters';
 
 export type NodeKind =
   | 'connection'
@@ -18,7 +19,8 @@ export type NodeKind =
   | 'schema'
   | 'object'
   | 'column'
-  | 'parameter';
+  | 'parameter'
+  | 'message';
 
 export interface HubNode {
   kind: NodeKind;
@@ -30,6 +32,8 @@ export interface HubNode {
   obj?: import('../types').DbObject;
   column?: ColumnInfo;
   param?: import('../types').ParameterInfo;
+  /** Informational leaf, e.g. "no tables match the filter" */
+  message?: string;
 }
 
 export const OBJECT_ICON: Record<ObjectType, string> = {
@@ -58,9 +62,11 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
     private readonly store: ConnectionStore,
     private readonly manager: ConnectionManager,
     private readonly cache: MetadataCache,
+    private readonly filters: FolderFilterStore,
   ) {
     manager.onDidChange(() => this.refresh());
     cache.onDidRefresh(() => this.refresh());
+    filters.onDidChange(() => this.refresh());
   }
 
   refresh(node?: HubNode): void {
@@ -88,13 +94,29 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
         return item;
       }
       case 'folder': {
+        const type = node.objectType!;
         const item = new vscode.TreeItem(
-          OBJECT_TYPE_LABEL[node.objectType!],
+          OBJECT_TYPE_LABEL[type],
           vscode.TreeItemCollapsibleState.Collapsed,
         );
-        item.id = `${node.connectionId}|${node.database}|folder|${node.objectType}|${node.schema ?? ''}`;
-        item.iconPath = new vscode.ThemeIcon('folder');
-        item.contextValue = `folder-${node.objectType}`;
+        item.id = `${node.connectionId}|${node.database}|folder|${type}|${node.schema ?? ''}`;
+        const filter = this.filters.get(node.connectionId, node.database!, type);
+        if (filter) {
+          // Distinct context value so the Clear action only shows up when
+          // there is something to clear.
+          item.description = `filter: ${filter}`;
+          item.tooltip =
+            `${OBJECT_TYPE_LABEL[type]} filtered by "${filter}" — ` +
+            `applies to every schema of ${node.database}`;
+          item.iconPath = new vscode.ThemeIcon(
+            'folder-active',
+            new vscode.ThemeColor('charts.yellow'),
+          );
+          item.contextValue = `folder-${type}-filtered`;
+        } else {
+          item.iconPath = new vscode.ThemeIcon('folder');
+          item.contextValue = `folder-${type}`;
+        }
         return item;
       }
       case 'schema': {
@@ -126,6 +148,21 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
         item.description = `${p.dataType}${p.isOutput ? ' OUT' : ''}`;
         item.iconPath = new vscode.ThemeIcon('symbol-parameter');
         item.contextValue = 'parameter';
+        return item;
+      }
+      case 'message': {
+        const item = new vscode.TreeItem(
+          node.message ?? '',
+          vscode.TreeItemCollapsibleState.None,
+        );
+        item.iconPath = new vscode.ThemeIcon('info');
+        item.contextValue = 'message';
+        item.tooltip = 'Click to clear the filter';
+        item.command = {
+          command: 'databaseHub.clearFolderFilter',
+          title: 'Clear Filter',
+          arguments: [node],
+        };
         return item;
       }
     }
@@ -233,14 +270,25 @@ export class ObjectExplorer implements vscode.TreeDataProvider<HubNode> {
 
       case 'folder': {
         const driver = await this.manager.connect(profile, node.database);
-        const objects = await this.cache.listObjects(
-          profile.id,
-          node.database!,
-          driver,
-          node.objectType!,
-        );
-        const filtered = node.schema ? objects.filter((o) => o.schema === node.schema) : objects;
-        return filtered.map((o) => ({
+        const type = node.objectType!;
+        const objects = await this.cache.listObjects(profile.id, node.database!, driver, type);
+        const scoped = node.schema ? objects.filter((o) => o.schema === node.schema) : objects;
+        // Persistent folder filter, applied after the cache so search and
+        // IntelliSense still see every object.
+        const filter = this.filters.get(profile.id, node.database!, type);
+        const visible = this.filters.apply(filter, scoped);
+        if (filter && visible.length === 0) {
+          return [
+            {
+              kind: 'message' as const,
+              connectionId: profile.id,
+              database: node.database,
+              objectType: type,
+              message: `No ${OBJECT_TYPE_LABEL[type].toLowerCase()} match "${filter}"`,
+            },
+          ];
+        }
+        return visible.map((o) => ({
           kind: 'object' as const,
           connectionId: profile.id,
           database: node.database,

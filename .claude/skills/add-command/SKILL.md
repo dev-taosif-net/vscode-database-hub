@@ -44,6 +44,8 @@ handler receives:
 | `connection-off`, `connection-on` | `HubNode { kind: 'connection', connectionId }` |
 | `database` | `HubNode { kind: 'database', connectionId, database }` (browse-all profiles only) |
 | `folder-table`, `folder-view`, `folder-procedure`, `folder-function`, `folder-trigger`, `folder-sequence` | `HubNode { kind: 'folder', connectionId, database, objectType, schema? }` |
+| `folder-<type>-filtered` | Same folder node while a persistent filter is active — folder regexes must accept the suffix, e.g. `/^folder-table(-filtered)?$/` |
+| `message` | `HubNode { kind: 'message', connectionId, database, objectType, message }` (the "no objects match" row) |
 | `schema` | `HubNode { kind: 'schema', connectionId, database, schema }` (Schema Focus Mode) |
 | `object-<type>` | `HubNode { kind: 'object', connectionId, database, schema?, obj: DbObject }` |
 | `column`, `parameter` | `HubNode` carrying `column` / `param` |

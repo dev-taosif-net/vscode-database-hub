@@ -41,6 +41,7 @@ Press F5 ("Run Extension"), then run the rows for the area you touched.
 |---|---|
 | Connections | Add via fields and via a pasted connection string; **Test Connection** succeeds and fails visibly; editing with a blank password keeps the stored one; Delete removes the tree item |
 | Explorer | Expand connection → folders → objects → columns / parameters; a browse-all profile (blank database) shows a Databases level; toggle Schema Focus Mode; Refresh on a node; Search Database Objects opens the picked object |
+| Folder filter | Filter icon on Tables / Views / Procedures sets `order, dbo.cust*`; folder shows `filter: …`, only matches load, Search and Refresh icons stay visible; no-match shows one info row that clears on click; filter survives collapse, Refresh, disconnect, reconnect and a window reload; Clear icon removes it and all objects load again |
 | Query | `Ctrl+Enter` with and without a selection; `Ctrl+Shift+Enter`; SQL Server `GO` batches give several result sets; cancel a long query (`WAITFOR DELAY '00:00:20'` / `SELECT pg_sleep(20)`) — the grid shows *Query cancelled.*; a bare `USE x` switches the tab (status bar + header comment) without executing |
 | Safety | `DELETE FROM t` without WHERE shows the modal; any write on a PROD profile shows the PROD modal; a read-only profile blocks writes with an error toast |
 | Results | Multiple result sets show as tabs; sort, filter, paging; Copy Cell / Rows CSV / Rows JSON; Export CSV and Export Excel write files; `PRINT` / `RAISE NOTICE` and rows-affected lines appear under the grid |

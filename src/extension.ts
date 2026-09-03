@@ -5,6 +5,7 @@ import { ConnectionStore } from './connections/store';
 import { MssqlDriver } from './drivers/mssqlDriver';
 import { PostgresDriver } from './drivers/postgresDriver';
 import { MetadataCache } from './explorer/cache';
+import { FolderFilterStore } from './explorer/filters';
 import { HubNode, OBJECT_ICON, ObjectExplorer } from './explorer/tree';
 import { FavoritesStore } from './favorites/store';
 import { FavoritesView } from './favorites/view';
@@ -34,12 +35,13 @@ export function activate(context: vscode.ExtensionContext): void {
   const store = new ConnectionStore(context);
   manager = new ConnectionManager(store);
   const cache = new MetadataCache();
+  const filters = new FolderFilterStore(context);
   const historyStore = new HistoryStore(context);
   const favoritesStore = new FavoritesStore(context);
   const binding = new EditorBinding(store, manager, context.workspaceState);
   const resultsView = new ResultsViewProvider(context.extensionUri);
   const executor = new Executor(manager, historyStore, resultsView);
-  const explorer = new ObjectExplorer(store, manager, cache);
+  const explorer = new ObjectExplorer(store, manager, cache, filters);
 
   context.subscriptions.push(
     resultsView.register(),
@@ -366,6 +368,7 @@ export function activate(context: vscode.ExtensionContext): void {
     await mgr.disconnect(profile.id);
     cache.invalidateConnection(profile.id);
     await store.delete(profile.id);
+    await filters.clearConnection(profile.id);
     explorer.refresh();
   });
 
@@ -540,6 +543,39 @@ export function activate(context: vscode.ExtensionContext): void {
     if (picked) {
       await openPickedObject(profile, database, driver, picked.obj);
     }
+  });
+
+  register('databaseHub.filterFolder', async (node?: HubNode) => {
+    if (!node?.objectType || !node.database) {
+      return;
+    }
+    const label = OBJECT_TYPE_LABEL[node.objectType].toLowerCase();
+    const text = await vscode.window.showInputBox({
+      title: `Filter ${label}`,
+      prompt:
+        `Show only ${label} whose schema.name contains the text. ` +
+        'Separate several terms with commas; * matches anything. Leave empty to clear.',
+      value: filters.get(node.connectionId, node.database, node.objectType) ?? '',
+      placeHolder: 'e.g. order, dbo.cust*',
+      ignoreFocusOut: true,
+    });
+    if (text === undefined) {
+      return; // dismissed — keep the current filter
+    }
+    await filters.set(node.connectionId, node.database, node.objectType, text);
+    vscode.window.setStatusBarMessage(
+      text.trim()
+        ? `Database Hub: ${label} filtered by "${text.trim()}"`
+        : `Database Hub: ${label} filter cleared`,
+      2000,
+    );
+  });
+
+  register('databaseHub.clearFolderFilter', async (node?: HubNode) => {
+    if (!node?.objectType || !node.database) {
+      return;
+    }
+    await filters.clear(node.connectionId, node.database, node.objectType);
   });
 
   // ---------- query commands ----------

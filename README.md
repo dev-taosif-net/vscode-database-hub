@@ -36,6 +36,7 @@ Safety features:
 - Metadata cache with TTL (`databaseHub.metadata.cacheTtlMinutes`): stale data is served instantly and refreshed in the background, so the tree never blocks.
 - Context actions: SELECT Top 1000, Script as CREATE, Copy Qualified Name, Add to Favorites, per-connection Refresh.
 - **Search Database Objects** (magnifier in the view title): instant fuzzy search across all cached tables, views, procedures, functions, triggers and sequences.
+- **Filter** (funnel icon on the Tables, Views and Procedures folders): type one or more comma-separated terms such as `order, dbo.cust*` and the folder shows only matching objects — terms match anywhere in `schema.name`, `*` matches anything. The filter is remembered per connection and database until you clear it (across refreshes, reconnects and restarts); in Schema Focus Mode it applies under every schema. Search always covers every object.
 
 ### Query execution
 - `Ctrl+Enter` — execute selection (or whole file when nothing is selected); `Ctrl+Shift+Enter` — execute all.
